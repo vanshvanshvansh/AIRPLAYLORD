@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirPlay — Gesture-Controlled Video Call Games</title>
+  <meta name="description" content="Two people video call and play real-time games controlled entirely by hand and finger gestures — no touch, no buttons.">
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <main class="landing-container">
+    <div class="hero-badge">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"/></svg>
+      <span>AirPlay v1.0 — Zero Friction, 100% On-Device Gestures</span>
+    </div>
+
+    <h1 class="hero-title">
+      Video Calls Made <br>
+      <span class="text-gradient">Playful & Gesture-Driven</span>
+    </h1>
+
+    <p class="hero-sub">
+      Connect with friends over WebRTC video and play real-time gesture-controlled games directly on top of your live video feeds. Controlled entirely by hand movements.
+    </p>
+
+    <div class="actions-grid">
+      <!-- Card 1: Solo Practice -->
+      <div class="glass-panel action-card">
+        <div class="card-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></div>
+        <h3>Solo Practice Mode</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; flex: 1;">
+          Test your hand tracking, fingertip precision, and play solo balloon popping without making a call.
+        </p>
+        <a href="solo.html" class="btn btn-secondary">Play Solo</a>
+      </div>
+
+      <!-- Card 2: Create Call -->
+      <div class="glass-panel action-card" style="border-color: rgba(0, 242, 254, 0.3);">
+        <div class="card-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+        <h3>Create Video Call</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; flex: 1;">
+          Start a new video call room as Host. Send the unguessable link to your friend to play together.
+        </p>
+        <button id="createRoomBtn" class="btn btn-primary">Create Call Room</button>
+      </div>
+
+      <!-- Card 3: Join Room -->
+      <div class="glass-panel action-card">
+        <div class="card-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.5-1.5"/></svg></div>
+        <h3>Join Video Call</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+          Enter a room ID shared by your friend to join their active video call session.
+        </p>
+        <div class="join-form">
+          <input type="text" id="roomIdInput" class="input-field" placeholder="Enter Room ID...">
+          <button id="joinRoomBtn" class="btn btn-secondary">Join</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="scripts/utils.js"></script>
+  <script>
+    // Create Room Action
+    // NOTE: host status is intentionally NOT put in the URL. It's claimed locally
+    // (sessionStorage) at creation time, so the shared link itself carries no
+    // special privilege — anyone editing the URL query string cannot make
+    // themselves the room owner.
+    //
+    // IMPORTANT: this uses sessionStorage, not localStorage. localStorage is
+    // shared by EVERY tab of the same browser/origin, so testing by opening a
+    // second tab on the same PC (or pasting the link into another tab) would
+    // make that second tab see the same "owner" key and incorrectly believe
+    // it was also the Host — both sides then think they're peerA, nobody
+    // sends/accepts a join request, and the call + games never sync.
+    // sessionStorage is unique per tab, so a freshly opened/pasted tab is
+    // correctly treated as a Guest, while a page refresh in the ORIGINAL tab
+    // still keeps its Host status.
+    document.getElementById('createRoomBtn').addEventListener('click', debounce(() => {
+      const roomId = generateRoomId();
+      try {
+        sessionStorage.setItem(`airplay_owner_${roomId}`, '1');
+      } catch (e) { /* sessionStorage unavailable — falls back to guest role */ }
+      window.location.href = `call.html?room=${roomId}`;
+    }));
+
+    // Join Room Action
+    document.getElementById('joinRoomBtn').addEventListener('click', debounce(() => {
+      const roomId = document.getElementById('roomIdInput').value.trim();
+      if (roomId) {
+        window.location.href = `call.html?room=${encodeURIComponent(roomId)}`;
+      } else {
+        alert("Please enter a valid Room ID.");
+      }
+    }));
+
+    // Auto check if URL has ?room= parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    if (roomParam) {
+      window.location.href = `call.html?room=${encodeURIComponent(roomParam)}`;
+    }
+  </script>
+</body>
+</html>
