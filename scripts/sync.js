@@ -17,7 +17,32 @@ class SyncEngine {
     this.gamesHistory = []; // Tracks finished games for Call End Summary
     this.localStore = {}; // Mirrors Firebase's node tree for BroadcastChannel fallback
 
+    // Once WebRTC's data channel is open, these specific continuous-stream
+    // paths route directly P2P instead of through Firebase — this is what
+    // was causing the ~2s lag on paddle/ball/tug during live play, since
+    // every single update had to round-trip through the Firebase server.
+    // Everything else (scores, game/current start signal, etc.) stays on
+    // Firebase since those are one-off events that need reliable delivery.
+    this.dataChannel = null;
+    this.REALTIME_PATHS = new Set([
+      'game/paddleBall', 'game/paddleInput', 'game/tugMarker',
+      'game/tugPull', 'game/puck', 'game/bottleAngle'
+    ]);
+
     this.initTransport();
+  }
+
+  // Called once the WebRTC peer connection's game data channel opens.
+  setDataChannel(channel) {
+    this.dataChannel = channel;
+    channel.addEventListener('message', (event) => {
+      try {
+        const { path, data } = JSON.parse(event.data);
+        this.applyLocalWrite(path, data);
+      } catch (e) {
+        console.error('SyncEngine: bad data channel payload', e);
+      }
+    });
   }
 
   initTransport() {
@@ -87,6 +112,14 @@ class SyncEngine {
   }
 
   write(path, data) {
+    if (this.REALTIME_PATHS.has(path) && this.dataChannel && this.dataChannel.readyState === 'open') {
+      try {
+        this.dataChannel.send(JSON.stringify({ path, data }));
+        return;
+      } catch (e) {
+        console.error('SyncEngine: data channel send failed, falling back to Firebase', e);
+      }
+    }
     if (this.useFirebase && this.roomRef) {
       this.roomRef.child(path).set(data);
     } else if (this.broadcastChannel) {
