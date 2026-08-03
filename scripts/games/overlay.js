@@ -77,9 +77,21 @@ class GameOverlayManager {
       }
     });
 
+    // Must ALSO be registered before 'game/current' for the same reason.
+    // Previously the guest never listened to this at all and instead started
+    // its OWN local 3s countdown the moment the (network-delayed) 'game/current'
+    // notification arrived — so if that notification was even 1-2s late, the
+    // guest's countdown/game started 1-2s behind the host's, which is exactly
+    // why both sides showed different screens / mismatched countdowns.
+    this.sync.listen('game/startTimestamp', (ts) => {
+      if (typeof ts === 'number') {
+        this.pendingStartTimestamp = ts;
+      }
+    });
+
     this.sync.listen('game/current', (gameId) => {
       if (gameId && gameId !== this.currentGameId) {
-        this.launchGame(gameId, false, null, this.pendingTimerSetting);
+        this.launchGame(gameId, false, this.pendingStartTimestamp, this.pendingTimerSetting);
       } else if (!gameId && this.activeGame) {
         this.endActiveGame(false);
       }
@@ -111,7 +123,7 @@ class GameOverlayManager {
 
   startSyncedGame(gameId, timerSetting = 45) {
     this.customTimerSetting = timerSetting;
-    const startTimestamp = performance.now() + 3000;
+    const startTimestamp = Date.now() + 3000;
     if (this.sync) {
       this.sync.write('game/timerSetting', timerSetting);
       this.sync.write('game/startTimestamp', startTimestamp);
@@ -135,7 +147,7 @@ class GameOverlayManager {
     if (this.scoreboardEl) this.scoreboardEl.style.display = 'flex';
     if (this.exitBtn) this.exitBtn.style.display = 'flex';
 
-    const startTime = targetTimestamp || (performance.now() + 3000);
+    const startTime = targetTimestamp || (Date.now() + 3000);
     this.runCountdown(startTime, () => {
       this.activeGame.start(this.canvas, this.sync, this.customTimerSetting);
     });
@@ -143,7 +155,7 @@ class GameOverlayManager {
 
   runCountdown(targetTime, onComplete) {
     const countdownInterval = setInterval(() => {
-      const remaining = Math.ceil((targetTime - performance.now()) / 1000);
+      const remaining = Math.ceil((targetTime - Date.now()) / 1000);
       this.countdownSeconds = remaining;
 
       if (remaining <= 0) {
