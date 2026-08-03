@@ -764,11 +764,17 @@ h1, h2, h3, h4 {
   .summary-grid { grid-template-columns: 1fr; }
 
   .control-bar {
-    width: 94%;
-    max-width: 480px;
-    justify-content: space-between;
-    gap: 4px;
-    padding: 8px 10px;
+    /* BUGFIX: was width:94% + justify-content:space-between, which stretched
+       the (now only 3) buttons to the far edges of the bar on phones —
+       leaving big gaps between them instead of the tight cluster seen on
+       desktop (where control-bar has no explicit width/space-between).
+       Sizing to content + centering keeps the exact same tight grouping on
+       every screen size. */
+    width: auto;
+    max-width: 94vw;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 14px;
     bottom: 14px;
   }
   .control-btn { width: 40px; height: 40px; }
@@ -796,7 +802,7 @@ h1, h2, h3, h4 {
 
 @media (max-width: 420px) {
   .hero-title { font-size: 2rem; }
-  .control-bar { gap: 2px; padding: 6px 8px; }
+  .control-bar { gap: 8px; padding: 6px 10px; }
   .control-btn { width: 36px; height: 36px; }
   .control-btn .icon { width: 16px; height: 16px; }
   .score-val { font-size: 1.1rem; }
