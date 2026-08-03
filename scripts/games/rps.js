@@ -40,6 +40,11 @@ class RPSGame {
   startCountdown() {
     this.countdown = 3;
     this.roundState = 'COUNTDOWN';
+    // BUGFIX: roundWinner was never cleared between rounds, so if a round
+    // reached REVEAL while waiting on a peer gesture that never arrived (or
+    // arrived as NONE), the screen kept showing the PREVIOUS round's winner
+    // — looking exactly like the game "decided" a winner out of thin air.
+    this.roundWinner = null;
 
     // Solo mode: lock in the bot's gesture NOW, before the player has shown
     // theirs, so there is zero possibility of the bot "reading" the player's
@@ -59,6 +64,7 @@ class RPSGame {
 
   stop() {
     this.roundState = 'ROUND_END';
+    clearTimeout(this._waitTimeout);
   }
 
   render(ctx, width, height, localFingertip, peerFingertip) {
@@ -132,9 +138,14 @@ class RPSGame {
       ctx.shadowColor = '#00f2fe';
       ctx.shadowBlur = 20;
 
-      let resultText = 'DRAW!';
-      if (this.roundWinner === myRole) resultText = 'YOU WIN ROUND! 🎉';
-      else if (this.roundWinner && this.roundWinner !== myRole) resultText = 'OPPONENT WINS ROUND!';
+      // BUGFIX: 'DRAW' is a truthy string, so checking "roundWinner &&
+      // roundWinner !== myRole" before checking for a draw meant every draw
+      // fell into that branch and displayed as a loss/win instead of DRAW.
+      // The DRAW case must be checked explicitly, first.
+      let resultText = 'Waiting for opponent…';
+      if (this.roundWinner === 'DRAW') resultText = 'DRAW!';
+      else if (this.roundWinner === myRole) resultText = 'YOU WIN ROUND! 🎉';
+      else if (this.roundWinner) resultText = 'OPPONENT WINS ROUND!';
 
       const maxWidth = Math.min(width - 40, 560);
       wrapCanvasText(ctx, resultText, cx, cy + 60, maxWidth, scaleFont(ctx.canvas, 50));
@@ -149,6 +160,19 @@ class RPSGame {
 
     if (this.sync) {
       this.sync.write('game/rpsGesture', { role: myRole, gesture: this.localGesture });
+
+      // If the opponent never locks in a gesture (dropped hand, lag, etc.)
+      // don't leave the screen stuck forever on "Waiting for opponent…" —
+      // redo the round after a few seconds so play can continue.
+      clearTimeout(this._waitTimeout);
+      this._waitTimeout = setTimeout(() => {
+        if (this.roundState === 'REVEAL' && !this.roundWinner) {
+          this.localGesture = 'NONE';
+          this.peerGesture = 'NONE';
+          this.dwellStart = null;
+          this.startCountdown();
+        }
+      }, 6000);
     } else {
       // Solo mode: use the gesture committed before the round started
       this.peerGesture = this.botPreCommittedGesture || ['ROCK', 'PAPER', 'SCISSORS'][Math.floor(Math.random() * 3)];
@@ -158,6 +182,7 @@ class RPSGame {
 
   checkRoundResolution() {
     if (this.localGesture === 'NONE' || this.peerGesture === 'NONE') return;
+    clearTimeout(this._waitTimeout);
 
     const g1 = this.localGesture;
     const g2 = this.peerGesture;
