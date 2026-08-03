@@ -16,6 +16,9 @@ class WebRTCManager {
     this.isVideoMuted = false;
     this.reconnectTimer = null;
     this.activeFilter = 'none';
+
+    this.dataChannel = null;
+    this.onDataChannelReady = options.onDataChannelReady || null;
   }
 
   async initializeLocalMedia() {
@@ -82,6 +85,12 @@ class WebRTCManager {
       }
     };
 
+    // Guest side receives the channel the host creates in createOffer().
+    this.peerConnection.ondatachannel = (event) => {
+      this.dataChannel = event.channel;
+      this.setupDataChannel();
+    };
+
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection.connectionState;
       console.log("WebRTC Connection State:", state);
@@ -115,8 +124,25 @@ class WebRTCManager {
     }
   }
 
+  setupDataChannel() {
+    if (!this.dataChannel) return;
+    this.dataChannel.onopen = () => {
+      console.log("Game data channel open (low-latency P2P sync active).");
+      if (this.onDataChannelReady) this.onDataChannelReady(this.dataChannel);
+    };
+    this.dataChannel.onerror = (e) => console.error("Data channel error:", e);
+  }
+
   async createOffer() {
     if (!this.peerConnection) this.createPeerConnection();
+    // Host creates the channel. unordered + no retransmits = fire-and-forget,
+    // like UDP: a late/dropped position update is just skipped instead of
+    // blocking newer ones behind it, which is what real-time game state needs.
+    this.dataChannel = this.peerConnection.createDataChannel('game', {
+      ordered: false,
+      maxRetransmits: 0
+    });
+    this.setupDataChannel();
     const offer = await this.peerConnection.createOffer();
     await this.peerConnection.setLocalDescription(offer);
     return offer;
