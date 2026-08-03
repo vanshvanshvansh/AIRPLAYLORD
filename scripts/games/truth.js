@@ -19,6 +19,19 @@ class TruthGame {
     this.dwellStartTruth = null;
     this.dwellStartDare = null;
 
+    // Player-color scheme, fixed & screen-independent (see BUGFIX note on
+    // determineLandingPlayer/render below) — Red = P1/peerA, Blue = P2/peerB.
+    this.PLAYER_COLORS = { peerA: '#ff0844', peerB: '#2979ff' };
+    this.PLAYER_LABELS = { peerA: 'P1 (Red)', peerB: 'P2 (Blue)' };
+
+    // Per-player Truth/Dare pick counters for this game session (shown on
+    // the end-of-game summary instead of a meaningless 0-0 score — see
+    // BUGFIX note near the end-of-game handling).
+    this.tdCounts = {
+      peerA: { truth: 0, dare: 0 },
+      peerB: { truth: 0, dare: 0 }
+    };
+
     // Custom Tagged Questions Storage
     this.customTruthTags = [];
     this.customDareTags = [];
@@ -52,6 +65,7 @@ class TruthGame {
 
   start(canvas, syncEngine) {
     this.sync = syncEngine;
+    this.tdCounts = { peerA: { truth: 0, dare: 0 }, peerB: { truth: 0, dare: 0 } };
     this.resetTurnState();
 
     if (this.sync) {
@@ -69,6 +83,10 @@ class TruthGame {
           this.chosenType = stateData.chosenType;
           this.currentPrompt = stateData.currentPrompt;
           this.selectedPlayer = stateData.selectedPlayer;
+          // Counts are authoritative from whichever device actually made the
+          // pick (see selectChoice()) — mirror them here so both screens'
+          // end-of-game summary always agree.
+          if (stateData.tdCounts) this.tdCounts = stateData.tdCounts;
         }
       });
       this.sync.listen('game/customQuestions', (data) => {
@@ -138,6 +156,23 @@ class TruthGame {
     } else if (this.sync && !this.sync.isHost) {
       this.angle = SyncEngine.lerp(this.angle, this.targetAngle, 0.15);
     }
+
+    // BUGFIX (bottle landed on "the wrong person"): the landing player used
+    // to be inferred by eye — "which video tile does the bottle's tip point
+    // at?" — but the two devices don't necessarily share the same camera
+    // layout (e.g. one phone stacks the two video tiles top/bottom in
+    // portrait, the other lays them side-by-side in landscape), even though
+    // the bottle's rotation angle itself IS perfectly synced. So the exact
+    // same spin could visually read as "landed on me" on one screen and
+    // "landed on them" on the other, purely because of layout, not logic.
+    // Fix: stop relying on camera-tile position entirely. Draw a fixed
+    // (non-rotating) ring, split into a Red half and a Blue half at the
+    // SAME world-space boundary the selection math already uses (see
+    // determineLandingPlayer). Because this ring is drawn in absolute
+    // screen space — not tied to either camera tile — it renders IDENTICALLY
+    // on both devices, so "which color the bottle's neck stops in" is
+    // unambiguous and agrees on every screen, regardless of layout.
+    this.renderSelectorRing(ctx, cx, cy);
 
     ctx.save();
 
@@ -225,6 +260,53 @@ class TruthGame {
     }
   }
 
+  // Fixed, non-rotating Red/Blue half-ring. Boundary matches
+  // determineLandingPlayer()'s normAngle-vs-π split, offset by -π/2 because
+  // the bottle's neck points "up" (world angle -π/2) when this.angle === 0.
+  renderSelectorRing(ctx, cx, cy) {
+    const r = 145;
+    ctx.save();
+
+    // Right half (world angle -π/2 → π/2) = this.angle in [0, π) = peerB/Blue
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(41, 121, 255, 0.16)';
+    ctx.fill();
+
+    // Left half (world angle π/2 → 3π/2) = this.angle in [π, 2π) = peerA/Red
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, Math.PI / 2, 3 * Math.PI / 2);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255, 8, 68, 0.16)';
+    ctx.fill();
+
+    // Divider line + outer ring outline
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx, cy + r);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.font = '800 13px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = this.PLAYER_COLORS.peerA;
+    ctx.fillText('RED · P1', cx - r + 34, cy);
+    ctx.fillStyle = this.PLAYER_COLORS.peerB;
+    ctx.fillText('BLUE · P2', cx + r - 34, cy);
+
+    ctx.restore();
+  }
+
   determineLandingPlayer() {
     const normAngle = (this.angle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
     this.selectedPlayer = normAngle > Math.PI ? 'peerA' : 'peerB';
@@ -243,10 +325,23 @@ class TruthGame {
     const cy = height / 2 + 140;
     const now = performance.now();
 
+    // BUGFIX: only the actual selected player's own device should be able to
+    // choose Truth/Dare via hand tracking — previously ANY local fingertip
+    // (on either device) could trigger selectChoice() since this render
+    // function ran identically on both screens with no ownership check.
+    const isMyTurn = !this.sync || this.sync.peerRole === this.selectedPlayer;
+
     ctx.font = `700 ${scaleFont(ctx.canvas, 24)}px Outfit, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
-    wrapCanvasText(ctx, `${this.selectedPlayer === 'peerA' ? 'P1 (Pink)' : 'P2 (Cyan)'} — Choose Truth or Dare!`, cx, cy - 50, width - 40, scaleFont(ctx.canvas, 28));
+    ctx.fillStyle = this.PLAYER_COLORS[this.selectedPlayer] || '#ffffff';
+    const label = this.PLAYER_LABELS[this.selectedPlayer] || 'Player';
+    wrapCanvasText(ctx, `${label} — Choose Truth or Dare!`, cx, cy - 50, width - 40, scaleFont(ctx.canvas, 28));
+
+    if (!isMyTurn) {
+      ctx.font = `600 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText("Waiting for their pick…", cx, cy - 22);
+    }
 
     const btnOffset = Math.min(120, width * 0.24);
     const tx = cx - btnOffset;
@@ -268,7 +363,7 @@ class TruthGame {
     ctx.fillStyle = '#ffffff';
     ctx.fillText('DARE', dx, dy + 6);
 
-    if (localFingertip) {
+    if (localFingertip && isMyTurn) {
       const fx = localFingertip.px;
       const fy = localFingertip.py;
 
@@ -285,6 +380,9 @@ class TruthGame {
       } else {
         this.dwellStartDare = null;
       }
+    } else {
+      this.dwellStartTruth = null;
+      this.dwellStartDare = null;
     }
   }
 
@@ -320,12 +418,18 @@ class TruthGame {
     this.currentPrompt = chosenQuestion;
     this.choiceState = 'PROMPT_ACTIVE';
 
+    // Tally this pick for the end-of-game Truth/Dare summary (replaces the
+    // meaningless 0-0 numeric "score" this game never actually used).
+    if (!this.tdCounts[targetPlayer]) this.tdCounts[targetPlayer] = { truth: 0, dare: 0 };
+    this.tdCounts[targetPlayer][type === 'TRUTH' ? 'truth' : 'dare']++;
+
     if (this.sync) {
       this.sync.write('game/truthState', {
         choiceState: this.choiceState,
         chosenType: this.chosenType,
         currentPrompt: this.currentPrompt,
-        selectedPlayer: this.selectedPlayer
+        selectedPlayer: this.selectedPlayer,
+        tdCounts: this.tdCounts
       });
     }
   }
