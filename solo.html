@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>AirPlay — Solo Practice Mode</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="stylesheet" href="styles/main.css">
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -101,6 +103,35 @@
         <div class="game-icon-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6l3 3-3 11-3-11 3-3z"/><circle cx="12" cy="2" r="1.5"/></svg></div>
         <h4>Truth or Dare — Air Spin</h4>
         <p style="color: var(--text-muted); font-size: 0.85rem;">Bottle spin physics, custom tag questions — solo practice run.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Round Result Modal — shown the instant a game ends, whether its
+       timer ran out naturally or it was cut short via Back to Menu.
+       Populated by GameOverlayManager.showGameResultModal(). -->
+  <div id="gameResultModal" class="modal-backdrop">
+    <div class="glass-panel modal-card" style="max-width: 420px; text-align: center;">
+      <div id="gameResultBanner" class="game-result-banner">🏆</div>
+      <h2 id="gameResultTitle">Game Over</h2>
+      <p id="gameResultWinnerText" style="color: var(--text-muted); margin-top: 6px; font-size: 1.05rem; font-weight: 700;"></p>
+
+      <div class="game-result-scores">
+        <div class="game-result-score-item">
+          <span id="gameResultLabelA" class="game-result-label" style="color: #ff0844;">You</span>
+          <span id="gameResultValA" class="game-result-value">0</span>
+        </div>
+        <div class="game-result-vs">VS</div>
+        <div class="game-result-score-item">
+          <span id="gameResultLabelB" class="game-result-label" style="color: #00f2fe;">Bot</span>
+          <span id="gameResultValB" class="game-result-value">0</span>
+        </div>
+      </div>
+
+      <p id="gameResultMeta" style="color: var(--text-muted); margin-top: 16px; font-size: 0.85rem;"></p>
+
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button id="gameResultCloseBtn" class="btn btn-primary" style="width: 100%;">Choose Next Game</button>
       </div>
     </div>
   </div>
