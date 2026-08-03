@@ -527,6 +527,40 @@ h1, h2, h3, h4 {
   border-radius: 12px;
 }
 
+/* Score pulse — brief highlight so a point change is visibly obvious on
+   both screens instead of the number just silently updating. */
+.score-val.score-pulse {
+  animation: scorePulse 0.65s ease-out;
+}
+
+@keyframes scorePulse {
+  0% { transform: scale(1); color: inherit; text-shadow: none; }
+  30% { transform: scale(1.5); color: #ffd54a; text-shadow: 0 0 14px rgba(255, 213, 74, 0.9); }
+  100% { transform: scale(1); color: inherit; text-shadow: none; }
+}
+
+/* Floating "+1" popup — appended to <body> and positioned via inline
+   left/top (viewport coordinates), so it isn't clipped by the small
+   scoreboard-hud pill it floats up from. */
+.floating-score-popup {
+  position: fixed;
+  transform: translate(-50%, -10px);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #ffd54a;
+  text-shadow: 0 0 10px rgba(255, 213, 74, 0.8);
+  pointer-events: none;
+  z-index: 65;
+  animation: floatScorePopup 0.9s ease-out forwards;
+}
+
+@keyframes floatScorePopup {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
+  20% { opacity: 1; transform: translate(-50%, -14px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+}
+
 .exit-game-btn {
   position: fixed;
   top: 76px;
@@ -827,3 +861,65 @@ h1, h2, h3, h4 {
   box-sizing: border-box;
 }
 .modal-card, .bottom-sheet { max-width: 96vw; }
+
+/* BUGFIX (score/timer numbers rendering one digit per line, e.g. "14"
+   shown as "1" stacked above "4"): the global safety net above applies
+   word-break: break-word to EVERY descendant of .glass-panel/.scoreboard-hud
+   so long text in modals/sheets wraps instead of overflowing. But
+   word-break: break-word also lets a flex child (.score-player, .score-val,
+   .game-timer-display) be compressed by flexbox to NARROWER than its own
+   text content's natural width — and once that happens the browser has no
+   choice but to break the number itself onto multiple lines, one character
+   per line. These elements are short, fixed-format numbers/labels that
+   must never wrap, so opt them back out.  */
+.score-player, .score-val, .game-timer-display,
+.game-result-value, .game-result-label {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  flex-shrink: 0;
+}
+
+/* Game Round Result Modal — shown to both players whenever a game ends
+   (timer runs out, or either side ends it early). */
+.game-result-banner {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.game-result-scores {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.game-result-score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+}
+
+.game-result-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.game-result-value {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.game-result-vs {
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.5;
+  padding-top: 20px;
+}
