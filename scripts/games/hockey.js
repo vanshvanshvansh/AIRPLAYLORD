@@ -9,6 +9,9 @@ class HockeyGame {
     this.targetPuck = { x: 0.5, y: 0.5 };
     this.paddleA = { x: 0.5, y: 0.85 };
     this.paddleB = { x: 0.5, y: 0.15 };
+    this.targetPaddleA = { x: 0.5, y: 0.85 };
+    this.targetPaddleB = { x: 0.5, y: 0.15 };
+    this._lastPaddleSend = 0;
 
     this.lastSyncTime = 0;
     this.isRunning = false;
@@ -18,6 +21,9 @@ class HockeyGame {
     this.sync = syncEngine;
     this.puck = { x: 0.5, y: 0.5, vx: 0.004, vy: 0.005, radius: 25 };
     this.targetPuck = { x: 0.5, y: 0.5 };
+    this.targetPaddleA = { ...this.paddleA };
+    this.targetPaddleB = { ...this.paddleB };
+    this._lastPaddleSend = 0;
     this.isRunning = true;
 
     if (this.sync) {
@@ -33,26 +39,28 @@ class HockeyGame {
       });
       this.sync.listen('game/paddleInput', (data) => {
         if (data) {
-          if (data.role === 'peerA') this.paddleA = data.pos;
-          if (data.role === 'peerB') this.paddleB = data.pos;
+          if (data.role === 'peerA') this.targetPaddleA = data.pos;
+          if (data.role === 'peerB') this.targetPaddleB = data.pos;
         }
       });
     }
   }
 
   startPhysicsLoop() {
+    // Broadcast-only: physics itself already runs once per animation frame
+    // inside render(). This interval's job is purely to tell the guest
+    // where things are; it must NOT also advance the simulation, or the
+    // puck moves twice as fast on the host and can tunnel past a paddle
+    // before a hit is ever registered.
     this.physicsInterval = setInterval(() => {
-      if (!this.isRunning) return;
-      this.updatePhysics();
-      if (this.sync) {
-        this.sync.write('game/puck', {
-          x: this.puck.x,
-          y: this.puck.y,
-          vx: this.puck.vx,
-          vy: this.puck.vy
-        });
-      }
-    }, 150); // Host updates physics every ~150ms
+      if (!this.isRunning || !this.sync) return;
+      this.sync.write('game/puck', {
+        x: this.puck.x,
+        y: this.puck.y,
+        vx: this.puck.vx,
+        vy: this.puck.vy
+      });
+    }, 50); // matches the paddle-game broadcast cadence
   }
 
   updatePhysics() {
@@ -116,8 +124,28 @@ class HockeyGame {
       myPaddle.x = localFingertip.x;
       myPaddle.y = myRole === 'peerA' ? Math.max(0.5, localFingertip.y) : Math.min(0.5, localFingertip.y);
 
+      // Cap writes to ~20/s instead of every render frame (~60/s). Flooding
+      // Firebase with a write every frame is what made the opponent's paddle
+      // arrive late/out of order and show up in the wrong spot on the other
+      // player's screen.
       if (this.sync) {
-        this.sync.write('game/paddleInput', { role: myRole, pos: myPaddle });
+        const now = performance.now();
+        if (now - this._lastPaddleSend >= 50) {
+          this._lastPaddleSend = now;
+          this.sync.write('game/paddleInput', { role: myRole, pos: myPaddle });
+        }
+      }
+    }
+
+    // Glide the OPPONENT's paddle toward the latest network value instead of
+    // snapping to it, so remaining latency reads as smooth motion, not a jump.
+    if (this.sync) {
+      if (myRole === 'peerA') {
+        this.paddleB.x = SyncEngine.lerp(this.paddleB.x, this.targetPaddleB.x, 0.35);
+        this.paddleB.y = SyncEngine.lerp(this.paddleB.y, this.targetPaddleB.y, 0.35);
+      } else {
+        this.paddleA.x = SyncEngine.lerp(this.paddleA.x, this.targetPaddleA.x, 0.35);
+        this.paddleA.y = SyncEngine.lerp(this.paddleA.y, this.targetPaddleA.y, 0.35);
       }
     }
 
