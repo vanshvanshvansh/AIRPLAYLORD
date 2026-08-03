@@ -104,9 +104,13 @@ class TugGame {
       if (this.lastFingertipY !== null) {
         const dy = Math.abs(localFingertip.y - this.lastFingertipY);
         const now = performance.now();
-        // 0.07 = a real deliberate swipe, not hand tremor/jitter. 120ms cooldown
+        // 0.045 = a real deliberate swipe, not hand tremor/jitter. 120ms cooldown
         // stops one continuous motion from firing force on every tracked frame.
-        if (dy > 0.07 && now - this._lastPullTime >= 120) {
+        // (Lowered from 0.07 now that the fingertip position is smoothly
+        // interpolated every frame instead of jumping in sparse ~15fps steps —
+        // per-frame dy is naturally smaller now, so the old threshold made
+        // pulls very hard to trigger and felt like they "weren't registering".)
+        if (dy > 0.045 && now - this._lastPullTime >= 120) {
           this._lastPullTime = now;
           const force = Math.min(dy * 2.2, 1.0);
           if (this.sync) {
