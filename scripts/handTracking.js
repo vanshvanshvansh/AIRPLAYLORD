@@ -18,7 +18,8 @@ class HandTracker {
     this.freezeTimeout = 500;
     this.fadeDuration = 200;
 
-    this.filteredFingertip = null;
+    this.filteredFingertip = null; // what games actually read every frame (smoothed/interpolated)
+    this.targetFingertip = null;   // latest raw sample straight from MediaPipe
     this.detectedGesture = 'NONE';
     this.noHandTimeoutTimer = null;
   }
@@ -48,7 +49,7 @@ class HandTracker {
     if (videoElement) this.videoElement = videoElement;
     if (!this.videoElement) return;
 
-    const MIN_INFERENCE_INTERVAL = 50; // ~20fps cap for hand-tracking inference
+    const MIN_INFERENCE_INTERVAL = 40; // ~25fps cap for hand-tracking inference
     let lastInferenceTime = 0;
     let inferenceBusy = false;
 
@@ -86,6 +87,25 @@ class HandTracker {
     }
   }
 
+  // Call this once per requestAnimationFrame, BEFORE reading
+  // `this.filteredFingertip`. Glides the on-screen position toward the
+  // latest raw MediaPipe sample so motion looks like a full 60fps even
+  // though real samples only arrive ~15-25 times a second on phones.
+  advanceDisplayPosition() {
+    if (!this.targetFingertip) return;
+    if (!this.filteredFingertip) {
+      this.filteredFingertip = { ...this.targetFingertip };
+      return;
+    }
+    const alpha = 0.4; // convergence speed — high enough to feel responsive, low enough to hide sample gaps
+    this.filteredFingertip = {
+      x: this.filteredFingertip.x + (this.targetFingertip.x - this.filteredFingertip.x) * alpha,
+      y: this.filteredFingertip.y + (this.targetFingertip.y - this.filteredFingertip.y) * alpha,
+      px: this.filteredFingertip.px + (this.targetFingertip.px - this.filteredFingertip.px) * alpha,
+      py: this.filteredFingertip.py + (this.targetFingertip.py - this.filteredFingertip.py) * alpha
+    };
+  }
+
   processResults(results) {
     const now = performance.now();
     const hasHand = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
@@ -105,12 +125,29 @@ class HandTracker {
       // Perform Aspect Ratio Offset Calibration
       const calibratedCoords = getAspectCorrectedCoords(smoothedNorm, this.videoElement, this.canvasElement);
 
-      this.filteredFingertip = {
+      // BUGFIX (the "5fps" complaint): this used to be written directly to
+      // `filteredFingertip`, which every game reads every animation frame
+      // (~60fps). But MediaPipe only actually delivers a new hand position
+      // ~10-20 times a second on a real phone (inference is slow), so the
+      // cursor/paddle/ball sat frozen for 3-6 render frames at a time, then
+      // teleported to the next sample — visually indistinguishable from the
+      // whole game running at 5-10fps, even though the canvas itself was
+      // redrawing at a full 60fps the entire time.
+      // Fix: store the raw sample as a TARGET, and smoothly glide
+      // `filteredFingertip` toward it once per animation frame (see
+      // advanceDisplayPosition(), called from the render loop). That turns
+      // the sparse ~15fps samples into fluid ~60fps on-screen motion.
+      this.targetFingertip = {
         x: calibratedCoords.normX,
         y: calibratedCoords.normY,
         px: calibratedCoords.x,
         py: calibratedCoords.y
       };
+      if (!this.filteredFingertip) {
+        // First acquisition (or just re-acquired after losing the hand):
+        // snap immediately instead of gliding in from wherever it last was.
+        this.filteredFingertip = { ...this.targetFingertip };
+      }
 
       this.detectedGesture = this.classifyGesture(this.lastLandmarks);
 
@@ -131,6 +168,7 @@ class HandTracker {
       } else {
         this.confidence = 0;
         this.filteredFingertip = null;
+        this.targetFingertip = null;
         this.detectedGesture = 'NONE';
         if (this.isTracking) {
           this.isTracking = false;
