@@ -49,28 +49,50 @@ class BalloonGame {
     this.startTimer();
   }
 
+  // Balloons spawn only in a band down the sides of the screen, never in the
+  // central column where a player's own face/webcam view sits, so a pack
+  // never covers your face while you're trying to look at your hand.
+  randomSpawnPoint() {
+    const leftBand = Math.random() < 0.5;
+    const x = leftBand ? (0.08 + Math.random() * 0.22) : (0.70 + Math.random() * 0.22);
+    const y = 0.18 + Math.random() * 0.64;
+    return { x, y };
+  }
+
   generateHostSchedule() {
-    const newBalloons = [];
-    for (let i = 0; i < 14; i++) {
-      newBalloons.push({
-        id: 'b_' + i + '_' + Math.random().toString(36).substring(2, 7),
-        x: 0.15 + Math.random() * 0.7,
-        y: 0.2 + Math.random() * 0.6,
+    this.balloons = [];
+    this.spawnPackFor('peerA', 7);
+    this.spawnPackFor('peerB', 7);
+    if (this.sync) this.sync.write('game/balloons', this.balloons);
+  }
+
+  // BUGFIX: previously ALL 14 balloons (both players' colors) had to be
+  // popped before a fresh pack spawned, so a faster player who cleared all
+  // of their own color just sat there waiting on their opponent — and if
+  // the opponent stalled, no new balloons ever appeared for either side.
+  // Each player's pack is now independent: clear your color, your color
+  // respawns immediately, regardless of what the other player has done.
+  spawnPackFor(owner, count) {
+    for (let i = 0; i < count; i++) {
+      const p = this.randomSpawnPoint();
+      this.balloons.push({
+        id: owner + '_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substring(2, 5),
+        x: p.x,
+        y: p.y,
         radius: 38 + Math.random() * 12,
-        owner: i % 2 === 0 ? 'peerA' : 'peerB', // Player 1 Pink, Player 2 Cyan
+        owner,
         popped: false
       });
     }
-    this.balloons = newBalloons;
-    if (this.sync) this.sync.write('game/balloons', this.balloons);
   }
 
   spawnLocalBalloons(count) {
     for (let i = 0; i < count; i++) {
+      const p = this.randomSpawnPoint();
       this.balloons.push({
-        id: 'solo_b_' + i,
-        x: 0.15 + Math.random() * 0.7,
-        y: 0.2 + Math.random() * 0.6,
+        id: 'solo_b_' + i + '_' + Math.random().toString(36).substring(2, 5),
+        x: p.x,
+        y: p.y,
         radius: 40,
         owner: 'peerA',
         popped: false
@@ -232,9 +254,15 @@ class BalloonGame {
       }
     }
 
-    if (this.balloons.every(b => b.popped)) {
+    // Respawn only THIS player's color once their own pack is cleared —
+    // never wait on the opponent's balloons, and never touch the
+    // opponent's still-live balloons.
+    const ownerBalloonsLeft = this.balloons.some(b => b.owner === role && !b.popped);
+    if (!ownerBalloonsLeft) {
       if (!this.sync || this.sync.isHost) {
-        this.generateHostSchedule();
+        this.balloons = this.balloons.filter(b => b.owner !== role);
+        this.spawnPackFor(role, 7);
+        if (this.sync) this.sync.write('game/balloons', this.balloons);
       }
     }
   }
