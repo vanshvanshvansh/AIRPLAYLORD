@@ -80,11 +80,24 @@ class GameOverlayManager {
     // one screen while the other still shows an old timer/countdown.
     // Fix: send everything the game needs to start in ONE write to ONE
     // path, so it always arrives as a single atomic snapshot.
+    // BUGFIX (game end doesn't propagate to the other player): Firebase
+    // Realtime Database silently STRIPS any key whose value is `null` before
+    // writing — so the old `sync.write('game/session', { gameId: null })`
+    // call in endActiveGame() actually resulted in the ENTIRE 'game/session'
+    // node being deleted (an object with only null-valued keys collapses to
+    // nothing). That means the listener below received `session === null`
+    // (not an object), and the old check `session && !session.gameId` never
+    // ran because `session` itself was falsy — so the other player's game
+    // never ended automatically. Checking `!session || !session.gameId`
+    // (instead of requiring `session` to be truthy first) correctly treats
+    // "node deleted" and "gameId explicitly cleared" as the same signal.
     this.sync.listen('game/session', (session) => {
-      if (session && session.gameId && session.gameId !== this.currentGameId) {
+      if (!session || !session.gameId) {
+        if (this.activeGame) this.endActiveGame(false);
+        return;
+      }
+      if (session.gameId !== this.currentGameId) {
         this.launchGame(session.gameId, false, session.startTimestamp, session.timerSetting);
-      } else if (session && !session.gameId && this.activeGame) {
-        this.endActiveGame(false);
       }
     });
 
@@ -185,7 +198,10 @@ class GameOverlayManager {
     if (this.exitBtn) this.exitBtn.style.display = 'none';
 
     if (notifyPeer && this.sync) {
-      this.sync.write('game/session', { gameId: null });
+      // `false` (not `null`) so Firebase doesn't strip the key entirely —
+      // keeps 'game/session' as a real, readable object for anything else
+      // that might inspect it.
+      this.sync.write('game/session', { gameId: false });
     }
   }
 
