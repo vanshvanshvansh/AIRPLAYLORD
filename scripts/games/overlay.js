@@ -192,7 +192,11 @@ class GameOverlayManager {
     // previous round's score the moment the first real point comes in.
     if (this.sync && this.sync.isHost) this.sync.write('game/scores', this.scores);
 
-    if (this.scoreboardEl) this.scoreboardEl.style.display = 'flex';
+    // Truth or Dare has no numeric "score" — the live 0-0 scoreboard HUD
+    // was meaningless for it, so hide it for this game only. (Its
+    // end-of-game summary shows Truth/Dare pick counts instead — see
+    // showGameResultModal below.)
+    if (this.scoreboardEl) this.scoreboardEl.style.display = (gameId === 'truth') ? 'none' : 'flex';
     if (this.exitBtn) this.exitBtn.style.display = 'flex';
 
     const startTime = targetTimestamp || (this.now() + 3000);
@@ -264,6 +268,11 @@ class GameOverlayManager {
       const winner = (this.scores.peerA > this.scores.peerB) ? 'peerA' : (this.scores.peerB > this.scores.peerA ? 'peerB' : 'TIE');
       const finishedGameId = this.currentGameId;
       const finishedScores = { ...this.scores };
+      // Truth or Dare reports Truth/Dare pick counts instead of a score —
+      // grab them off the game instance before it's torn down below.
+      const finishedTdCounts = (finishedGameId === 'truth' && this.activeGame.tdCounts)
+        ? JSON.parse(JSON.stringify(this.activeGame.tdCounts))
+        : null;
       const playedSeconds = this.gameStartedAt ? Math.max(0, Math.round((Date.now() - this.gameStartedAt) / 1000)) : 0;
 
       if (this.sync) {
@@ -278,7 +287,7 @@ class GameOverlayManager {
       // triggered endActiveGame (own timer, exit button, or the peer
       // ending it — see the 'game/session' listener above), so it's
       // consistent across every game and every way a round can end.
-      this.showGameResultModal(finishedGameId, finishedScores, winner, playedSeconds);
+      this.showGameResultModal(finishedGameId, finishedScores, winner, playedSeconds, finishedTdCounts);
     }
     this.currentGameId = null;
     this.gameStartedAt = null;
@@ -294,7 +303,7 @@ class GameOverlayManager {
     }
   }
 
-  showGameResultModal(gameId, scores, winner, playedSeconds) {
+  showGameResultModal(gameId, scores, winner, playedSeconds, tdCounts = null) {
     if (!this.resultModalEl) return;
 
     const myRole = this.sync ? this.sync.peerRole : 'peerA';
@@ -313,6 +322,25 @@ class GameOverlayManager {
 
     if (labelAEl) labelAEl.textContent = isSolo ? 'You' : (myRole === 'peerA' ? 'You' : 'Opponent');
     if (labelBEl) labelBEl.textContent = isSolo ? 'Bot' : (myRole === 'peerB' ? 'You' : 'Opponent');
+
+    // Truth or Dare: show how many times each player picked Truth vs Dare
+    // instead of a numeric score — a win/loss score never meant anything
+    // for this game, but the pick breakdown is actually useful info.
+    if (gameId === 'truth' && tdCounts) {
+      const a = tdCounts.peerA || { truth: 0, dare: 0 };
+      const b = tdCounts.peerB || { truth: 0, dare: 0 };
+      if (valAEl) valAEl.textContent = `${a.truth} Truth · ${a.dare} Dare`;
+      if (valBEl) valBEl.textContent = `${b.truth} Truth · ${b.dare} Dare`;
+      if (winnerTextEl) winnerTextEl.textContent = 'Round Complete!';
+      if (bannerEl) bannerEl.textContent = '🎉';
+      const mins2 = Math.floor(playedSeconds / 60);
+      const secs2 = playedSeconds % 60;
+      const durationStr2 = mins2 > 0 ? `${mins2}m ${secs2}s` : `${secs2}s`;
+      if (metaEl) metaEl.textContent = `Played for ${durationStr2}`;
+      this.resultModalEl.classList.add('active');
+      return;
+    }
+
     if (valAEl) valAEl.textContent = scores.peerA || 0;
     if (valBEl) valBEl.textContent = scores.peerB || 0;
 
