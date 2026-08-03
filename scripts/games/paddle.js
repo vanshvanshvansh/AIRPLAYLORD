@@ -5,7 +5,14 @@ class PaddleGame {
     this.overlay = overlayManager;
     this.sync = null;
 
-    this.ball = { x: 0.5, y: 0.5, vx: 0.007, vy: 0.010, radius: 16 };
+    // Base speeds bumped ~1.8x and physics is now delta-time scaled (see
+    // updatePhysics) instead of a fixed "per rendered frame" step — on a
+    // phone where MediaPipe hand-tracking competes for CPU time and the
+    // render loop occasionally drops below 60fps, the OLD fixed-per-frame
+    // step meant the ball advanced less every second in real wall-clock
+    // time (fewer frames = fewer steps = a genuinely slower-looking ball).
+    // Scaling by real elapsed time keeps speed consistent no matter the fps.
+    this.ball = { x: 0.5, y: 0.5, vx: 0.0125, vy: 0.018, radius: 16 };
     this.targetBall = { x: 0.5, y: 0.5 };
 
     this.paddleA = { x: 0.5, width: 0.2, y: 0.88 }; // Bottom paddle (Player 1 Pink)
@@ -18,11 +25,12 @@ class PaddleGame {
     this.targetPaddleA = 0.5;
     this.targetPaddleB = 0.5;
     this._lastPaddleSend = 0; // throttle gate for outgoing paddleInput writes
+    this._lastPhysicsTime = null; // wall-clock timestamp of the last updatePhysics() call
 
     // How far the ball can reach in front of a paddle before it's considered
     // a hit, and the hard speed cap so hits-in-a-row don't spiral out of control.
     this.paddleReach = 0.045;
-    this.maxSpeed = 0.02;
+    this.maxSpeed = 0.036;
 
     this.gameTimer = 90;
     this.isUnlimitedTimer = false;
@@ -37,11 +45,12 @@ class PaddleGame {
 
   start(canvas, syncEngine, timerSetting = 90) {
     this.sync = syncEngine;
-    this.ball = { x: 0.5, y: 0.5, vx: 0.007, vy: 0.010, radius: 16 };
+    this.ball = { x: 0.5, y: 0.5, vx: 0.0125, vy: 0.018, radius: 16 };
     this.targetBall = { x: 0.5, y: 0.5 };
     this.targetPaddleA = this.paddleA.x;
     this.targetPaddleB = this.paddleB.x;
     this._lastPaddleSend = 0;
+    this._lastPhysicsTime = null;
     this.isRunning = true;
 
     if (timerSetting === 'unlimited') {
@@ -113,8 +122,20 @@ class PaddleGame {
   }
 
   updatePhysics() {
-    this.ball.x += this.ball.vx;
-    this.ball.y += this.ball.vy;
+    // Delta-time scaling: normalize movement to a 60fps baseline (16.67ms
+    // per frame) using REAL elapsed wall-clock time instead of a fixed step
+    // per call. Without this, if the render loop drops to e.g. 20fps on a
+    // loaded phone, the ball only got 20 position updates that second
+    // instead of 60 — i.e. it visibly crawled — even though each individual
+    // step size was "correct". Clamped to 3x so a tab going to the
+    // background and coming back doesn't fire off one giant teleporting step.
+    const now = performance.now();
+    const dt = this._lastPhysicsTime ? (now - this._lastPhysicsTime) : 16.67;
+    this._lastPhysicsTime = now;
+    const scale = Math.min(Math.max(dt / 16.67, 0.2), 3);
+
+    this.ball.x += this.ball.vx * scale;
+    this.ball.y += this.ball.vy * scale;
 
     // Bounce off side walls (x: 0.03 to 0.97)
     if (this.ball.x <= 0.03 || this.ball.x >= 0.97) {
