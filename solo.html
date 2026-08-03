@@ -180,6 +180,7 @@
       handTracker.startCamera(videoEl);
 
       function animationFrameLoop() {
+        handTracker.advanceDisplayPosition();
         overlayManager.render(handTracker.filteredFingertip, null);
         requestAnimationFrame(animationFrameLoop);
       }
