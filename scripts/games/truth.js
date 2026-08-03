@@ -141,19 +141,65 @@ class TruthGame {
 
     ctx.save();
 
-    // Render 2D Neon Bottle
+    // Render Bottle — proper glass-bottle silhouette (body → tapered
+    // shoulder → neck → cap) instead of the old plain rounded-rectangle
+    // "pill" shape, which didn't read as a bottle at all.
     ctx.translate(cx, cy);
     ctx.rotate(this.angle);
 
     ctx.beginPath();
-    ctx.roundRect(-20, -90, 40, 180, 15);
-    ctx.fillStyle = 'rgba(0, 242, 254, 0.85)';
+    ctx.moveTo(-22, 95);                                  // bottom-left
+    ctx.lineTo(-22, 10);                                   // up the body's left side
+    ctx.quadraticCurveTo(-22, -35, -10, -55);              // shoulder taper (left)
+    ctx.lineTo(-10, -95);                                  // neck (left)
+    ctx.lineTo(10, -95);                                   // neck top
+    ctx.lineTo(10, -55);                                   // neck (right)
+    ctx.quadraticCurveTo(22, -35, 22, 10);                 // shoulder taper (right)
+    ctx.lineTo(22, 95);                                     // down the body's right side
+    ctx.quadraticCurveTo(22, 105, 12, 105);                // rounded bottom-right
+    ctx.lineTo(-12, 105);
+    ctx.quadraticCurveTo(-22, 105, -22, 95);               // rounded bottom-left
+    ctx.closePath();
+
+    const glassGrad = ctx.createLinearGradient(-22, 0, 22, 0);
+    glassGrad.addColorStop(0, 'rgba(0, 200, 210, 0.55)');
+    glassGrad.addColorStop(0.45, 'rgba(120, 245, 255, 0.92)');
+    glassGrad.addColorStop(0.55, 'rgba(120, 245, 255, 0.92)');
+    glassGrad.addColorStop(1, 'rgba(0, 150, 170, 0.55)');
+    ctx.fillStyle = glassGrad;
     ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 25;
+    ctx.shadowBlur = 22;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label band around the middle of the body
+    ctx.beginPath();
+    ctx.roundRect(-22, 20, 44, 30, 4);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fill();
+    ctx.font = '800 11px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff0844';
+    ctx.fillText('AIRPLAY', 0, 39);
+
+    // Glossy highlight streak down the body
+    ctx.beginPath();
+    ctx.roundRect(-15, -50, 6, 130, 3);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fill();
 
+    // Cap
+    ctx.beginPath();
+    ctx.roundRect(-12, -110, 24, 18, 4);
     ctx.fillStyle = '#ff0844';
-    ctx.fillRect(-8, -120, 16, 30);
+    ctx.shadowColor = '#ff0844';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
     ctx.restore();
 
