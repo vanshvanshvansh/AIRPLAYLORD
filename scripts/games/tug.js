@@ -9,6 +9,7 @@ class TugGame {
     this.targetMarkerPos = 0.5;
     this.lastFingertipY = null;
     this.isRunning = false;
+    this._lastPullTime = 0;
 
     // Solo-mode Bot AI (only active when there is no syncEngine). Pulls the
     // marker toward peerB's side on a random cadence so it's a real duel
@@ -102,8 +103,12 @@ class TugGame {
     if (localFingertip) {
       if (this.lastFingertipY !== null) {
         const dy = Math.abs(localFingertip.y - this.lastFingertipY);
-        if (dy > 0.03) { // Threshold speed for a pull swipe
-          const force = Math.min(dy * 3.0, 1.0);
+        const now = performance.now();
+        // 0.07 = a real deliberate swipe, not hand tremor/jitter. 120ms cooldown
+        // stops one continuous motion from firing force on every tracked frame.
+        if (dy > 0.07 && now - this._lastPullTime >= 120) {
+          this._lastPullTime = now;
+          const force = Math.min(dy * 2.2, 1.0);
           if (this.sync) {
             this.sync.write('game/tugPull', { role: myRole, force });
           } else {
