@@ -10,7 +10,6 @@ class GameOverlayManager {
     this.currentGameId = null;
     this.countdownSeconds = null;
     this.customTimerSetting = 45;
-    this.pendingTimerSetting = 45; // last timer value received via sync, used when game/current fires
 
     this.scores = {
       peerA: 0,
@@ -69,30 +68,22 @@ class GameOverlayManager {
   }
 
   setupSyncListeners() {
-    // Must be registered before 'game/current' — startSyncedGame() writes
-    // timerSetting first, then current, so this value is populated in time.
-    this.sync.listen('game/timerSetting', (timerSetting) => {
-      if (timerSetting !== null && timerSetting !== undefined) {
-        this.pendingTimerSetting = timerSetting;
-      }
-    });
-
-    // Must ALSO be registered before 'game/current' for the same reason.
-    // Previously the guest never listened to this at all and instead started
-    // its OWN local 3s countdown the moment the (network-delayed) 'game/current'
-    // notification arrived — so if that notification was even 1-2s late, the
-    // guest's countdown/game started 1-2s behind the host's, which is exactly
-    // why both sides showed different screens / mismatched countdowns.
-    this.sync.listen('game/startTimestamp', (ts) => {
-      if (typeof ts === 'number') {
-        this.pendingStartTimestamp = ts;
-      }
-    });
-
-    this.sync.listen('game/current', (gameId) => {
-      if (gameId && gameId !== this.currentGameId) {
-        this.launchGame(gameId, false, this.pendingStartTimestamp, this.pendingTimerSetting);
-      } else if (!gameId && this.activeGame) {
+    // BUGFIX: this used to be THREE separate writes to three separate
+    // Firebase paths (game/timerSetting, game/startTimestamp, game/current),
+    // each with its own listener. Firebase does not guarantee those three
+    // 'value' callbacks fire in write order relative to EACH OTHER (only
+    // writes to the *same* path are ordered) — so on a slow/lossy connection
+    // 'game/current' could arrive before 'game/timerSetting' had landed,
+    // and the guest would launch the game with the stale default (45s)
+    // while the host was using whatever value was actually picked (e.g. 3s
+    // or a custom value). Same race explains games starting mid-switch on
+    // one screen while the other still shows an old timer/countdown.
+    // Fix: send everything the game needs to start in ONE write to ONE
+    // path, so it always arrives as a single atomic snapshot.
+    this.sync.listen('game/session', (session) => {
+      if (session && session.gameId && session.gameId !== this.currentGameId) {
+        this.launchGame(session.gameId, false, session.startTimestamp, session.timerSetting);
+      } else if (session && !session.gameId && this.activeGame) {
         this.endActiveGame(false);
       }
     });
@@ -125,9 +116,8 @@ class GameOverlayManager {
     this.customTimerSetting = timerSetting;
     const startTimestamp = Date.now() + 3000;
     if (this.sync) {
-      this.sync.write('game/timerSetting', timerSetting);
-      this.sync.write('game/startTimestamp', startTimestamp);
-      this.sync.write('game/current', gameId);
+      // Single atomic write — see BUGFIX note in setupSyncListeners().
+      this.sync.write('game/session', { gameId, timerSetting, startTimestamp });
     } else {
       this.launchGame(gameId, true, startTimestamp, timerSetting);
     }
@@ -195,7 +185,7 @@ class GameOverlayManager {
     if (this.exitBtn) this.exitBtn.style.display = 'none';
 
     if (notifyPeer && this.sync) {
-      this.sync.write('game/current', null);
+      this.sync.write('game/session', { gameId: null });
     }
   }
 
