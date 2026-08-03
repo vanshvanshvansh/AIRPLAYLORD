@@ -408,7 +408,16 @@ h1, h2, h3, h4 {
   align-items: center;
   gap: 8px;
   z-index: 40;
-  transition: all 0.3s ease;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+/* Auto-hide after inactivity, same behavior as the bottom control bar, so
+   these badges don't sit on top of the video/game permanently. */
+.hand-status-badge.controls-hidden,
+.network-health-badge.controls-hidden {
+  opacity: 0;
+  transform: translateY(-14px);
+  pointer-events: none;
 }
 
 .status-dot {
@@ -439,6 +448,40 @@ h1, h2, h3, h4 {
   z-index: 40;
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid var(--glass-border);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+/* Consolidated Call Settings Panel (mic/camera/filters/reactions/etc,
+   grouped behind one gear button instead of cluttering the control bar) */
+.settings-panel {
+  position: fixed;
+  bottom: 85px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  z-index: 70;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92vw;
+}
+
+.settings-panel .control-btn {
+  flex-direction: column;
+  height: auto;
+  width: auto;
+  min-width: 54px;
+  padding: 10px 8px 8px;
+  border-radius: var(--radius-md);
+  gap: 4px;
+}
+
+.settings-panel-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  opacity: 0.8;
 }
 
 /* Game Scoreboard HUD */
