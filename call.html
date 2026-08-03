@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>AirPlay — Video Call & Gesture Games</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="stylesheet" href="styles/main.css">
   
   <!-- Firebase Compat JS SDK via CDN -->
@@ -255,6 +257,35 @@
       <div class="modal-actions">
         <button id="exitConfirmNo" class="btn btn-secondary">Keep Playing</button>
         <button id="exitConfirmYes" class="btn btn-danger">End Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Round Result Modal — shown to BOTH players the instant a game
+       ends, whether its timer ran out naturally or either side cut it
+       short early. Populated by GameOverlayManager.showGameResultModal(). -->
+  <div id="gameResultModal" class="modal-backdrop">
+    <div class="glass-panel modal-card" style="max-width: 420px; text-align: center;">
+      <div id="gameResultBanner" class="game-result-banner">🏆</div>
+      <h2 id="gameResultTitle">Game Over</h2>
+      <p id="gameResultWinnerText" style="color: var(--text-muted); margin-top: 6px; font-size: 1.05rem; font-weight: 700;"></p>
+
+      <div class="game-result-scores">
+        <div class="game-result-score-item">
+          <span id="gameResultLabelA" class="game-result-label" style="color: #ff0844;">Player 1</span>
+          <span id="gameResultValA" class="game-result-value">0</span>
+        </div>
+        <div class="game-result-vs">VS</div>
+        <div class="game-result-score-item">
+          <span id="gameResultLabelB" class="game-result-label" style="color: #00f2fe;">Player 2</span>
+          <span id="gameResultValB" class="game-result-value">0</span>
+        </div>
+      </div>
+
+      <p id="gameResultMeta" style="color: var(--text-muted); margin-top: 16px; font-size: 0.85rem;"></p>
+
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button id="gameResultCloseBtn" class="btn btn-primary" style="width: 100%;">Choose Next Game</button>
       </div>
     </div>
   </div>
