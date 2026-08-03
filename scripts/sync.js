@@ -17,6 +17,27 @@ class SyncEngine {
     this.gamesHistory = []; // Tracks finished games for Call End Summary
     this.localStore = {}; // Mirrors Firebase's node tree for BroadcastChannel fallback
 
+    // BUGFIX (pre-game countdown showed a different number of seconds on
+    // each phone, e.g. one side counting down from ~45 while the other
+    // shows ~3): the countdown is computed as `targetTimestamp - Date.now()`
+    // on EACH device using that device's own local clock. Two phones'
+    // clocks are almost never in perfect agreement (they can be off by
+    // seconds or even minutes), so comparing a shared absolute timestamp
+    // against two different local clocks produced two different countdowns
+    // even though both devices received the exact same targetTimestamp.
+    // Fix: track the offset between this device's clock and Firebase's
+    // server clock (a built-in RTDB feature) and use `Date.now() + offset`
+    // ("network time") everywhere a countdown is computed, instead of raw
+    // `Date.now()`. Every device's "network time" then agrees with every
+    // other device's, regardless of how wrong their local clocks are.
+    this.serverTimeOffset = 0;
+    if (this.useFirebase && this.db) {
+      this.db.ref('.info/serverTimeOffset').on('value', (snap) => {
+        const val = snap.val();
+        if (typeof val === 'number') this.serverTimeOffset = val;
+      });
+    }
+
     // Once WebRTC's data channel is open, these specific continuous-stream
     // paths route directly P2P instead of through Firebase — this is what
     // was causing the ~2s lag on paddle/ball/tug during live play, since
@@ -167,6 +188,13 @@ class SyncEngine {
     if (this.listeners[path]) {
       this.listeners[path](data);
     }
+  }
+
+  // "Network time" — Date.now() corrected for this device's clock drift
+  // relative to the Firebase server. Use this (not raw Date.now()) for any
+  // countdown/timestamp comparison that needs to agree across devices.
+  getServerTime() {
+    return Date.now() + this.serverTimeOffset;
   }
 
   static lerp(start, end, alpha) {
