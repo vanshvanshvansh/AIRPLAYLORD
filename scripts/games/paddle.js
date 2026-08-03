@@ -5,11 +5,16 @@ class PaddleGame {
     this.overlay = overlayManager;
     this.sync = null;
 
-    this.ball = { x: 0.5, y: 0.5, vx: 0.004, vy: 0.005, radius: 16 };
+    this.ball = { x: 0.5, y: 0.5, vx: 0.007, vy: 0.010, radius: 16 };
     this.targetBall = { x: 0.5, y: 0.5 };
 
     this.paddleA = { x: 0.5, width: 0.2, y: 0.88 }; // Bottom paddle (Player 1 Pink)
     this.paddleB = { x: 0.5, width: 0.2, y: 0.17 }; // Top paddle (Player 2 Cyan) — pushed below the scoreboard HUD
+
+    // How far the ball can reach in front of a paddle before it's considered
+    // a hit, and the hard speed cap so hits-in-a-row don't spiral out of control.
+    this.paddleReach = 0.045;
+    this.maxSpeed = 0.02;
 
     this.gameTimer = 90;
     this.isUnlimitedTimer = false;
@@ -24,7 +29,7 @@ class PaddleGame {
 
   start(canvas, syncEngine, timerSetting = 90) {
     this.sync = syncEngine;
-    this.ball = { x: 0.5, y: 0.5, vx: 0.004, vy: 0.005, radius: 16 };
+    this.ball = { x: 0.5, y: 0.5, vx: 0.007, vy: 0.010, radius: 16 };
     this.targetBall = { x: 0.5, y: 0.5 };
     this.isRunning = true;
 
@@ -76,18 +81,23 @@ class PaddleGame {
     }, 1000);
   }
 
+  // Host only: broadcasts the current ball state to the peer every 50ms.
+  // The actual simulation runs once per animation frame inside render() —
+  // this interval used to ALSO call updatePhysics(), which meant the host's
+  // ball was being advanced twice (once here, once in render()) every cycle.
+  // That silently doubled the ball's effective speed on the host and made it
+  // easy for the ball to skip clean over/through the paddle's contact zone
+  // in a single tick, which is what caused hits to register only after the
+  // ball had already passed behind the paddle.
   startPhysicsLoop() {
     this.physicsInterval = setInterval(() => {
-      if (!this.isRunning) return;
-      this.updatePhysics();
-      if (this.sync) {
-        this.sync.write('game/paddleBall', {
-          x: this.ball.x,
-          y: this.ball.y,
-          vx: this.ball.vx,
-          vy: this.ball.vy
-        });
-      }
+      if (!this.isRunning || !this.sync) return;
+      this.sync.write('game/paddleBall', {
+        x: this.ball.x,
+        y: this.ball.y,
+        vx: this.ball.vx,
+        vy: this.ball.vy
+      });
     }, 50);
   }
 
@@ -102,21 +112,27 @@ class PaddleGame {
       if (window.SoundFx) window.SoundFx.playHit();
     }
 
-    // Paddle A Collision (Bottom)
-    if (this.ball.y >= 0.90 && this.ball.y <= 0.94 && this.ball.vy > 0) {
+    // Paddle A Collision (Bottom) — the ball travels down TOWARD this paddle,
+    // so the contact zone sits just ABOVE the paddle line (the face it's
+    // approaching), not below it. Checking below the line meant the ball had
+    // already sailed past/behind the paddle before a bounce was registered.
+    if (this.ball.vy > 0 && this.ball.y >= this.paddleA.y - this.paddleReach && this.ball.y <= this.paddleA.y + 0.01) {
       if (Math.abs(this.ball.x - this.paddleA.x) <= this.paddleA.width / 2 + 0.02) {
-        this.ball.vy *= -1.05; // Slightly speed up
-        this.ball.vx = (this.ball.x - this.paddleA.x) * 0.04;
+        this.ball.vy = -Math.min(Math.abs(this.ball.vy) * 1.06, this.maxSpeed);
+        this.ball.vx = (this.ball.x - this.paddleA.x) * 0.05;
+        this.ball.y = this.paddleA.y - this.paddleReach; // snap to the contact point so it visibly bounces off the face
         if (window.SoundFx) window.SoundFx.playHit();
         if (window.ParticleFx) window.ParticleFx.explode(this.ball.x * window.innerWidth, this.ball.y * window.innerHeight, '#ff0844', 12);
       }
     }
 
-    // Paddle B Collision (Top)
-    if (this.ball.y <= 0.10 && this.ball.y >= 0.06 && this.ball.vy < 0) {
+    // Paddle B Collision (Top) — mirror of the above: ball travels up toward
+    // this paddle, so the contact zone sits just BELOW its line.
+    if (this.ball.vy < 0 && this.ball.y <= this.paddleB.y + this.paddleReach && this.ball.y >= this.paddleB.y - 0.01) {
       if (Math.abs(this.ball.x - this.paddleB.x) <= this.paddleB.width / 2 + 0.02) {
-        this.ball.vy *= -1.05;
-        this.ball.vx = (this.ball.x - this.paddleB.x) * 0.04;
+        this.ball.vy = Math.min(Math.abs(this.ball.vy) * 1.06, this.maxSpeed);
+        this.ball.vx = (this.ball.x - this.paddleB.x) * 0.05;
+        this.ball.y = this.paddleB.y + this.paddleReach;
         if (window.SoundFx) window.SoundFx.playHit();
         if (window.ParticleFx) window.ParticleFx.explode(this.ball.x * window.innerWidth, this.ball.y * window.innerHeight, '#00f2fe', 12);
       }
@@ -126,11 +142,11 @@ class PaddleGame {
     if (this.ball.y >= 0.99) { // Peer B scores (top player)
       this.overlay.updateScore('peerB', 1);
       if (window.SoundFx) window.SoundFx.playWin();
-      this.resetBall(-0.005);
+      this.resetBall(-0.010);
     } else if (this.ball.y <= 0.01) { // Peer A scores (bottom player)
       this.overlay.updateScore('peerA', 1);
       if (window.SoundFx) window.SoundFx.playWin();
-      this.resetBall(0.005);
+      this.resetBall(0.010);
     }
   }
 
@@ -186,11 +202,13 @@ class PaddleGame {
       }
     }
 
-    // Non-host client lerp interpolation
     if (this.sync && !this.sync.isHost) {
+      // Guest: don't simulate locally, just smoothly interpolate toward the
+      // host's authoritative ball position.
       this.ball.x = SyncEngine.lerp(this.ball.x, this.targetBall.x, 0.3);
       this.ball.y = SyncEngine.lerp(this.ball.y, this.targetBall.y, 0.3);
     } else {
+      // Host (multiplayer) or Solo mode: this is the ONLY place physics runs.
       if (!this.sync) this.updateBotPaddle(); // Solo mode: bot controls paddleB
       this.updatePhysics();
     }
