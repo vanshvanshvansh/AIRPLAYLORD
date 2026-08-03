@@ -11,6 +11,14 @@ class PaddleGame {
     this.paddleA = { x: 0.5, width: 0.2, y: 0.88 }; // Bottom paddle (Player 1 Pink)
     this.paddleB = { x: 0.5, width: 0.2, y: 0.17 }; // Top paddle (Player 2 Cyan) — pushed below the scoreboard HUD
 
+    // Latest x reported by the network for whichever paddle is NOT under our
+    // local control. We lerp toward this every frame instead of snapping to
+    // it directly, so the remote paddle glides instead of jumping/lagging
+    // behind on the other player's screen.
+    this.targetPaddleA = 0.5;
+    this.targetPaddleB = 0.5;
+    this._lastPaddleSend = 0; // throttle gate for outgoing paddleInput writes
+
     // How far the ball can reach in front of a paddle before it's considered
     // a hit, and the hard speed cap so hits-in-a-row don't spiral out of control.
     this.paddleReach = 0.045;
@@ -31,6 +39,9 @@ class PaddleGame {
     this.sync = syncEngine;
     this.ball = { x: 0.5, y: 0.5, vx: 0.007, vy: 0.010, radius: 16 };
     this.targetBall = { x: 0.5, y: 0.5 };
+    this.targetPaddleA = this.paddleA.x;
+    this.targetPaddleB = this.paddleB.x;
+    this._lastPaddleSend = 0;
     this.isRunning = true;
 
     if (timerSetting === 'unlimited') {
@@ -54,8 +65,8 @@ class PaddleGame {
       });
       this.sync.listen('game/paddleInput', (data) => {
         if (data) {
-          if (data.role === 'peerA') this.paddleA.x = data.x;
-          if (data.role === 'peerB') this.paddleB.x = data.x;
+          if (data.role === 'peerA') this.targetPaddleA = data.x;
+          if (data.role === 'peerB') this.targetPaddleB = data.x;
         }
       });
     }
@@ -195,10 +206,31 @@ class PaddleGame {
     // Effortless horizontal left-right hand sliding paddle input
     if (localFingertip) {
       const myPaddle = myRole === 'peerA' ? this.paddleA : this.paddleB;
-      myPaddle.x = localFingertip.x; // Slide left/right based on hand x position
+      myPaddle.x = localFingertip.x; // Slide left/right based on hand x position — instant locally, never delayed
 
+      // Firebase RTDB can't take a write every animation frame (~60/s) —
+      // that floods the connection and updates start arriving late/out of
+      // order, which is why the opponent's paddle used to show up in the
+      // wrong spot on the OTHER player's screen even though it was correct
+      // locally. Cap outgoing writes to once per 50ms (same cadence as the
+      // ball broadcast) and let the receiver smooth between updates below.
       if (this.sync) {
-        this.sync.write('game/paddleInput', { role: myRole, x: myPaddle.x });
+        const now = performance.now();
+        if (now - this._lastPaddleSend >= 50) {
+          this._lastPaddleSend = now;
+          this.sync.write('game/paddleInput', { role: myRole, x: myPaddle.x });
+        }
+      }
+    }
+
+    // Smoothly glide the OPPONENT's paddle toward the latest network value
+    // instead of snapping straight to it. This hides the remaining network
+    // latency/jitter so their paddle looks like it's sliding, not teleporting.
+    if (this.sync) {
+      if (myRole === 'peerA') {
+        this.paddleB.x = SyncEngine.lerp(this.paddleB.x, this.targetPaddleB, 0.35);
+      } else {
+        this.paddleA.x = SyncEngine.lerp(this.paddleA.x, this.targetPaddleA, 0.35);
       }
     }
 
