@@ -488,6 +488,7 @@
       });
 
       function renderLoop() {
+        handTracker.advanceDisplayPosition();
         if (handTracker.filteredFingertip) {
           syncEngine.write(`inputs/${syncEngine.peerRole}`, handTracker.filteredFingertip);
         }
