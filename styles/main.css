@@ -321,21 +321,24 @@ h1, h2, h3, h4 {
 
 .peer-name-tag {
   position: absolute;
-  bottom: 20px;
-  left: 20px;
-  padding: 6px 14px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  bottom: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
   border-radius: var(--radius-full);
-  font-size: 0.85rem;
+  font-size: 0.68rem;
   font-weight: 500;
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   z-index: 5;
+  opacity: 0.7;
+  transition: opacity 0.35s ease;
 }
+.peer-name-tag:hover { opacity: 1; }
 
 /* Canvas Game Overlay */
 #gameCanvas {
@@ -398,18 +401,20 @@ h1, h2, h3, h4 {
 /* Hand Detection Indicator Badge */
 .hand-status-badge {
   position: fixed;
-  top: 24px;
-  left: 24px;
-  padding: 8px 16px;
+  top: 16px;
+  left: 16px;
+  padding: 4px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.85rem;
+  font-size: 0.68rem;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   z-index: 40;
+  opacity: 0.55;
   transition: opacity 0.35s ease, transform 0.35s ease;
 }
+.hand-status-badge:hover { opacity: 0.95; }
 
 /* Auto-hide after inactivity, same behavior as the bottom control bar, so
    these badges don't sit on top of the video/game permanently. */
@@ -436,20 +441,22 @@ h1, h2, h3, h4 {
 /* Network Health Indicator Badge */
 .network-health-badge {
   position: fixed;
-  top: 24px;
-  right: 24px;
-  padding: 6px 14px;
+  top: 16px;
+  right: 16px;
+  padding: 4px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.8rem;
+  font-size: 0.65rem;
   font-family: var(--font-mono);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   z-index: 40;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--glass-border);
+  opacity: 0.55;
   transition: opacity 0.35s ease, transform 0.35s ease;
 }
+.network-health-badge:hover { opacity: 0.95; }
 
 /* Consolidated Call Settings Panel (mic/camera/filters/reactions/etc,
    grouped behind one gear button instead of cluttering the control bar) */
@@ -780,8 +787,8 @@ h1, h2, h3, h4 {
   .control-btn { width: 40px; height: 40px; }
   .control-btn .icon { width: 18px; height: 18px; }
 
-  .hand-status-badge { top: 14px; left: 14px; padding: 6px 12px; font-size: 0.75rem; }
-  .network-health-badge { top: 14px; right: 14px; padding: 5px 10px; font-size: 0.7rem; }
+  .hand-status-badge { top: 10px; left: 10px; padding: 3px 9px; font-size: 0.62rem; }
+  .network-health-badge { top: 10px; right: 10px; padding: 3px 8px; font-size: 0.6rem; }
   .exit-game-btn { top: 64px; right: 14px; width: 36px; height: 36px; }
   #backToMenuBtn { left: 14px; right: auto; }
 
