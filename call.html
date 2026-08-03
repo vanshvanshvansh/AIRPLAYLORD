@@ -72,34 +72,47 @@
 
   <!-- Floating Call Controls Bar (auto-hides after inactivity, like WhatsApp) -->
   <div id="controlBar" class="glass-panel control-bar">
-    <button id="micToggleBtn" class="control-btn" title="Toggle Microphone">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-    </button>
-    <button id="camToggleBtn" class="control-btn" title="Toggle Camera">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-    </button>
-    <button id="filterBtn" class="control-btn" title="Video Filters">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-    </button>
-    <button id="reactionBtn" class="control-btn" title="Send Reaction">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-    </button>
-    <button id="customTruthBtn" class="control-btn" title="Custom Truth & Dare Questions">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    <button id="settingsBtn" class="control-btn" title="Call Settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
     <button id="gamesMenuBtn" class="control-btn" title="Games Menu" style="background: linear-gradient(135deg, #00f2fe, #4facfe); color: #040914;">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
-    </button>
-    <button id="copyLinkBtn" class="control-btn" title="Copy Invite Link">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.5-1.5"/></svg>
     </button>
     <button id="endCallBtn" class="control-btn active-off" title="End Video Call">
       <svg class="icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21.4 15.9l-3.8-1.1a1.5 1.5 0 0 0-1.5.4l-1.7 1.7a13.4 13.4 0 0 1-5.3-5.3l1.7-1.7a1.5 1.5 0 0 0 .4-1.5L9.9 4.6A1.5 1.5 0 0 0 8.4 3.5H5a1.5 1.5 0 0 0-1.5 1.6C4.1 13.6 10.4 19.9 18.9 20.5a1.5 1.5 0 0 0 1.6-1.5v-3.4a1.5 1.5 0 0 0-1.1-1.5z"/></svg>
     </button>
   </div>
 
+  <!-- Call Settings Popup Panel (mic/camera/filters/reactions/truth-dare/invite-link) -->
+  <div id="callSettingsPanel" class="glass-panel settings-panel" style="display: none;">
+    <button id="micToggleBtn" class="control-btn" title="Toggle Microphone">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      <span class="settings-panel-label">Mic</span>
+    </button>
+    <button id="camToggleBtn" class="control-btn" title="Toggle Camera">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      <span class="settings-panel-label">Camera</span>
+    </button>
+    <button id="filterBtn" class="control-btn" title="Video Filters">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      <span class="settings-panel-label">Filters</span>
+    </button>
+    <button id="reactionBtn" class="control-btn" title="Send Reaction">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+      <span class="settings-panel-label">React</span>
+    </button>
+    <button id="customTruthBtn" class="control-btn" title="Custom Truth & Dare Questions">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <span class="settings-panel-label">Truth/Dare</span>
+    </button>
+    <button id="copyLinkBtn" class="control-btn" title="Copy Invite Link">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.5-1.5"/></svg>
+      <span class="settings-panel-label">Invite</span>
+    </button>
+  </div>
+
   <!-- Video Filters Popup Menu -->
-  <div id="filterMenu" class="glass-panel" style="position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); padding: 12px; display: none; gap: 8px; flex-wrap: wrap; z-index: 70; max-width: 320px;">
+  <div id="filterMenu" class="glass-panel" style="position: fixed; bottom: 145px; left: 50%; transform: translateX(-50%); padding: 12px; display: none; gap: 8px; flex-wrap: wrap; z-index: 75; max-width: 320px;">
     <button class="btn btn-secondary" onclick="window.setFilter('none')">Normal</button>
     <button class="btn btn-secondary" onclick="window.setFilter('beauty')">Beauty</button>
     <button class="btn btn-secondary" onclick="window.setFilter('vivid')">Vivid</button>
@@ -111,7 +124,7 @@
   </div>
 
   <!-- Emoji Reactions Popup Bar -->
-  <div id="reactionBar" class="glass-panel" style="position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); padding: 8px 16px; display: none; gap: 12px; z-index: 70; font-size: 1.5rem;">
+  <div id="reactionBar" class="glass-panel" style="position: fixed; bottom: 145px; left: 50%; transform: translateX(-50%); padding: 8px 16px; display: none; gap: 12px; z-index: 75; font-size: 1.5rem;">
     <span style="cursor: pointer;" onclick="window.sendEmoji('❤️')">❤️</span>
     <span style="cursor: pointer;" onclick="window.sendEmoji('🔥')">🔥</span>
     <span style="cursor: pointer;" onclick="window.sendEmoji('🎉')">🎉</span>
@@ -384,6 +397,9 @@
         },
         onIceCandidate: (candidate) => {
           syncEngine.write(`signaling/${syncEngine.peerRole}/iceCandidates/${Date.now()}`, candidate.toJSON());
+        },
+        onDataChannelReady: (channel) => {
+          syncEngine.setDataChannel(channel);
         }
       });
 
@@ -480,6 +496,12 @@
       }
       renderLoop();
 
+      // Settings Panel Toggle
+      const settingsPanel = document.getElementById('callSettingsPanel');
+      document.getElementById('settingsBtn').onclick = () => {
+        settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'flex' : 'none';
+      };
+
       // Controls Bar Actions
       document.getElementById('micToggleBtn').onclick = () => {
         const active = webrtc.toggleAudio();
@@ -570,13 +592,26 @@
 
     function setupControlBarAutoHide() {
       const bar = document.getElementById('controlBar');
+      const topBadges = [
+        document.getElementById('handStatusBadge'),
+        document.getElementById('networkHealthBadge')
+      ].filter(Boolean);
       if (!bar) return;
       let hideTimer = null;
 
       const show = () => {
         bar.classList.remove('controls-hidden');
+        topBadges.forEach((el) => el.classList.remove('controls-hidden'));
         if (hideTimer) clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => bar.classList.add('controls-hidden'), 3500);
+        hideTimer = setTimeout(() => {
+          bar.classList.add('controls-hidden');
+          // Don't hide the hand badge while it's actively warning about a
+          // real problem (hand lost / poor lighting) — only hide it once
+          // things are fine, same as the control bar hiding when idle.
+          topBadges.forEach((el) => {
+            if (!el.classList.contains('warning')) el.classList.add('controls-hidden');
+          });
+        }, 3500);
       };
 
       ['mousemove', 'touchstart', 'pointerdown', 'click'].forEach((evt) => {
