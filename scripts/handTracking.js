@@ -35,7 +35,7 @@ class HandTracker {
 
     this.hands.setOptions({
       maxNumHands: 1,
-      modelComplexity: 1,
+      modelComplexity: 0,
       minDetectionConfidence: 0.6,
       minTrackingConfidence: 0.6
     });
@@ -48,11 +48,27 @@ class HandTracker {
     if (videoElement) this.videoElement = videoElement;
     if (!this.videoElement) return;
 
+    const MIN_INFERENCE_INTERVAL = 50; // ~20fps cap for hand-tracking inference
+    let lastInferenceTime = 0;
+    let inferenceBusy = false;
+
+    const maybeInfer = async () => {
+      const now = performance.now();
+      if (inferenceBusy || now - lastInferenceTime < MIN_INFERENCE_INTERVAL) return;
+      inferenceBusy = true;
+      lastInferenceTime = now;
+      try {
+        await this.hands.send({ image: this.videoElement });
+      } finally {
+        inferenceBusy = false;
+      }
+    };
+
     if (typeof Camera !== 'undefined') {
       this.camera = new Camera(this.videoElement, {
         onFrame: async () => {
           if (this.hands && this.videoElement) {
-            await this.hands.send({ image: this.videoElement });
+            await maybeInfer();
           }
         },
         width: 1280,
@@ -62,7 +78,7 @@ class HandTracker {
     } else {
       const pumpFrame = async () => {
         if (this.videoElement && !this.videoElement.paused) {
-          await this.hands.send({ image: this.videoElement });
+          await maybeInfer();
         }
         requestAnimationFrame(pumpFrame);
       };
@@ -203,10 +219,10 @@ class HandTracker {
     const extendedCount = [isIndexExtended, isMiddleExtended, isRingExtended, isPinkyExtended].filter(Boolean).length;
 
     if (extendedCount >= 4) return 'PAPER';
-    if (extendedCount === 0 || extendedCount === 1) return 'ROCK';
+    if (extendedCount === 0) return 'ROCK'; // genuine closed fist only — a resting/relaxed hand is NOT a fist
     if (isIndexExtended && isMiddleExtended && !isRingExtended && !isPinkyExtended) return 'SCISSORS';
 
-    return 'NONE';
+    return 'NONE'; // ambiguous pose (e.g. 1-3 fingers loosely extended) — don't guess, wait for a clear gesture
   }
 }
 
