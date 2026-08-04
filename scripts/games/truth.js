@@ -112,6 +112,7 @@ class TruthGame {
     this.currentPrompt = null;
     this.dwellStartTruth = null;
     this.dwellStartDare = null;
+    this._lastSpinRequestAt = null;
 
     if (this.sync) {
       this.sync.write('game/truthState', {
@@ -208,10 +209,9 @@ class TruthGame {
     // "pill" shape, which didn't read as a bottle at all.
     ctx.translate(cx, cy);
     ctx.rotate(this.angle);
-    // Shrunk down (was full-size) — on a phone the old bottle + ring
-    // combo was big enough to cover a whole face during the video call.
-    // Scaling the draw down keeps the same shape/gradients/proportions.
-    ctx.scale(0.6, 0.6);
+    // Shrunk further (was 0.6) — still not small enough per feedback; the
+    // bottle+ring should never come close to covering a face on a phone.
+    ctx.scale(0.46, 0.46);
 
     ctx.beginPath();
     ctx.moveTo(-22, 95);                                  // bottom-left
@@ -274,13 +274,27 @@ class TruthGame {
       ctx.font = '700 22px Outfit, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('Tap / Hover Bottle to Spin!', cx, cy + 115);
+      ctx.fillText('Tap / Hover Bottle to Spin!', cx, cy + 90);
 
       if (localFingertip) {
         const fx = localFingertip.px;
         const fy = localFingertip.py;
-        if (Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2) < 65) {
-          if (this.sync) this.sync.write('game/spinTrigger', true);
+        // Small debounce so hovering near the bottle doesn't fire a fresh
+        // (Firebase) write every single frame — one request per gesture is
+        // plenty; triggerSpin()/the host listener already ignore repeats
+        // while a spin is in progress.
+        const nowMs = performance.now();
+        if (Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2) < 48 && (!this._lastSpinRequestAt || nowMs - this._lastSpinRequestAt > 1500)) {
+          this._lastSpinRequestAt = nowMs;
+          // BUGFIX (bottle "getting stuck"/unclickable after the first spin):
+          // this used to write the fixed boolean `true` every time. Firebase
+          // (and this app's own applyLocalWrite fallback) only fire a
+          // listener when a value actually CHANGES — so the very first spin
+          // worked (undefined → true), but every spin after that wrote the
+          // exact same `true` again, which is not a change, so the host's
+          // listener never fired and the bottle just sat there. Writing a
+          // fresh timestamp every time guarantees the value always changes.
+          if (this.sync) this.sync.write('game/spinTrigger', Date.now());
           else this.triggerSpin();
         }
       }
@@ -295,9 +309,8 @@ class TruthGame {
   // determineLandingPlayer()'s normAngle-vs-π split, offset by -π/2 because
   // the bottle's neck points "up" (world angle -π/2) when this.angle === 0.
   renderSelectorRing(ctx, cx, cy) {
-    // Shrunk from 145 — the old ring was large enough to sit over a whole
-    // face on a phone during the video call.
-    const r = 92;
+    // Shrunk further (was 145, then 92) per feedback.
+    const r = 68;
     ctx.save();
 
     // Right half (world angle -π/2 → π/2) = this.angle in [0, π) = peerB/Blue
@@ -355,7 +368,9 @@ class TruthGame {
 
   renderChoiceButtons(ctx, width, height, localFingertip) {
     const cx = width / 2;
-    const cy = height / 2 + 140;
+    // Sits close beneath the (now smaller) bottle/ring instead of far below
+    // it — was +140, tuned for the old, much larger ring.
+    const cy = height / 2 + 92;
     const now = performance.now();
 
     // BUGFIX: only the actual selected player's own device should be able to
@@ -364,50 +379,51 @@ class TruthGame {
     // function ran identically on both screens with no ownership check.
     const isMyTurn = !this.sync || this.sync.peerRole === this.selectedPlayer;
 
-    ctx.font = `700 ${scaleFont(ctx.canvas, 24)}px Outfit, sans-serif`;
+    ctx.font = `700 ${scaleFont(ctx.canvas, 22)}px Outfit, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = this.PLAYER_COLORS[this.selectedPlayer] || '#ffffff';
     const label = this.PLAYER_LABELS[this.selectedPlayer] || 'Player';
-    wrapCanvasText(ctx, `${label} — Choose Truth or Dare!`, cx, cy - 50, width - 40, scaleFont(ctx.canvas, 28));
+    wrapCanvasText(ctx, `${label} — Choose Truth or Dare!`, cx, height / 2 + 58, width - 40, scaleFont(ctx.canvas, 26));
 
     if (!isMyTurn) {
-      ctx.font = `600 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
+      ctx.font = `600 ${scaleFont(ctx.canvas, 15)}px Outfit, sans-serif`;
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText("Waiting for their pick…", cx, cy - 22);
+      ctx.fillText("Waiting for their pick…", cx, height / 2 + 78);
     }
 
-    const btnOffset = Math.min(120, width * 0.24);
+    const btnOffset = Math.min(100, width * 0.22);
+    const btnR = 40;
     const tx = cx - btnOffset;
     const ty = cy;
     ctx.beginPath();
-    ctx.arc(tx, ty, 50, 0, 2 * Math.PI);
+    ctx.arc(tx, ty, btnR, 0, 2 * Math.PI);
     ctx.fillStyle = '#00f2fe';
     ctx.fill();
-    ctx.font = `700 ${scaleFont(ctx.canvas, 18)}px Outfit, sans-serif`;
+    ctx.font = `700 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
     ctx.fillStyle = '#040914';
-    ctx.fillText('TRUTH', tx, ty + 6);
+    ctx.fillText('TRUTH', tx, ty + 5);
 
     const dx = cx + btnOffset;
     const dy = cy;
     ctx.beginPath();
-    ctx.arc(dx, dy, 50, 0, 2 * Math.PI);
+    ctx.arc(dx, dy, btnR, 0, 2 * Math.PI);
     ctx.fillStyle = '#ff0844';
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('DARE', dx, dy + 6);
+    ctx.fillText('DARE', dx, dy + 5);
 
     if (localFingertip && isMyTurn) {
       const fx = localFingertip.px;
       const fy = localFingertip.py;
 
-      if (Math.sqrt((fx - tx) ** 2 + (fy - ty) ** 2) < 50) {
+      if (Math.sqrt((fx - tx) ** 2 + (fy - ty) ** 2) < btnR) {
         if (!this.dwellStartTruth) this.dwellStartTruth = now;
         else if (now - this.dwellStartTruth >= 600) this.selectChoice('TRUTH');
       } else {
         this.dwellStartTruth = null;
       }
 
-      if (Math.sqrt((fx - dx) ** 2 + (fy - dy) ** 2) < 50) {
+      if (Math.sqrt((fx - dx) ** 2 + (fy - dy) ** 2) < btnR) {
         if (!this.dwellStartDare) this.dwellStartDare = now;
         else if (now - this.dwellStartDare >= 600) this.selectChoice('DARE');
       } else {
@@ -469,28 +485,31 @@ class TruthGame {
 
   renderPromptCard(ctx, cx, cy, localFingertip) {
     ctx.save();
-    const boxWidth = Math.min(520, ctx.canvas.width - 40);
-    const boxHeight = 170;
+    const boxWidth = Math.min(480, ctx.canvas.width - 40);
+    const boxHeight = 150;
+    // Sits close beneath the (now smaller) bottle/ring — was +60, tuned for
+    // the old, much larger ring, which left a big disconnected gap.
+    const boxTop = cy + 40;
     ctx.beginPath();
-    ctx.roundRect(cx - boxWidth / 2, cy + 60, boxWidth, boxHeight, 20);
+    ctx.roundRect(cx - boxWidth / 2, boxTop, boxWidth, boxHeight, 20);
     ctx.fillStyle = 'rgba(18, 24, 38, 0.95)';
     ctx.strokeStyle = this.chosenType === 'TRUTH' ? '#00f2fe' : '#ff0844';
     ctx.lineWidth = 3;
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = `700 ${scaleFont(ctx.canvas, 20)}px Outfit, sans-serif`;
+    ctx.font = `700 ${scaleFont(ctx.canvas, 19)}px Outfit, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = this.chosenType === 'TRUTH' ? '#00f2fe' : '#ff0844';
-    ctx.fillText(`${this.chosenType}:`, cx, cy + 95);
+    ctx.fillText(`${this.chosenType}:`, cx, boxTop + 32);
 
-    ctx.font = `500 ${scaleFont(ctx.canvas, 17)}px Outfit, sans-serif`;
+    ctx.font = `500 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
     ctx.fillStyle = '#ffffff';
-    wrapCanvasText(ctx, this.currentPrompt || '', cx, cy + 135, boxWidth - 40, scaleFont(ctx.canvas, 22));
+    wrapCanvasText(ctx, this.currentPrompt || '', cx, boxTop + 68, boxWidth - 40, scaleFont(ctx.canvas, 21));
 
     // Next Turn / Spin Again Hover Button
     const bx = cx;
-    const by = cy + 60 + boxHeight - 25;
+    const by = boxTop + boxHeight - 22;
     ctx.beginPath();
     ctx.roundRect(bx - 90, by - 16, 180, 32, 16);
     ctx.fillStyle = 'rgba(0, 242, 254, 0.2)';
