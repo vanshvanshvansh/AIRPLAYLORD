@@ -340,6 +340,33 @@ h1, h2, h3, h4 {
 }
 .peer-name-tag:hover { opacity: 1; }
 
+/* Camera-off / Mic-muted badges — shown on BOTH the local tile and the
+   remote tile whenever that side's camera/mic is off, mirroring how
+   WhatsApp/Instagram show a muted-mic icon on a participant's video tile. */
+.media-status-badges {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 6;
+}
+
+.media-status-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(20, 6, 10, 0.55);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 8, 68, 0.4);
+  color: #ff4e50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-status-badge .icon { width: 16px; height: 16px; }
+
 /* Canvas Game Overlay */
 #gameCanvas {
   position: absolute;
@@ -784,16 +811,20 @@ h1, h2, h3, h4 {
 
 /* Floating Emoji Reactions */
 .floating-emoji {
-  position: absolute;
+  position: fixed;
   font-size: 2.5rem;
   pointer-events: none;
   animation: floatUp 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   z-index: 60;
+  --drift: 0px;
+  --rise: 160px;
+  --scale: 1;
 }
 
 @keyframes floatUp {
-  0% { opacity: 1; transform: translateY(0) scale(0.8); }
-  100% { opacity: 0; transform: translateY(-120px) scale(1.3); }
+  0% { opacity: 1; transform: translate(0, 0) scale(0.7); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--drift), calc(-1 * var(--rise))) scale(var(--scale)); }
 }
 
 @media (max-width: 768px) {
@@ -873,7 +904,8 @@ h1, h2, h3, h4 {
    per line. These elements are short, fixed-format numbers/labels that
    must never wrap, so opt them back out.  */
 .score-player, .score-val, .game-timer-display,
-.game-result-value, .game-result-label {
+.game-result-value, .game-result-label,
+.btn {
   white-space: nowrap;
   word-break: normal;
   overflow-wrap: normal;
