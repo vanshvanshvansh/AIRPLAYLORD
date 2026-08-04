@@ -132,7 +132,33 @@ class TruthGame {
     this.isSpinning = true;
     this.choiceState = 'IDLE';
     this.currentPrompt = null;
-    this.angularVelocity = 0.35 + Math.random() * 0.45;
+
+    // BUGFIX (bottle "always" landing near the middle of a half, never near
+    // the boundary): the old approach picked a random VELOCITY and let it
+    // decay multiplicatively frame-by-frame until it dropped below a
+    // threshold. That's driven by an exponential decay curve, which — for
+    // any starting velocity in the old 0.35–0.8 range — reliably bleeds off
+    // to a stop at almost the same total rotation each time, so the final
+    // resting angle clustered in a narrow, predictable band instead of
+    // covering the whole circle.
+    // Fix: pick the FINAL resting angle first, uniformly at random anywhere
+    // on the full circle (so it can land anywhere — dead center of a half,
+    // right on the red/blue boundary, wherever), then add several random
+    // extra full rotations on top and animate smoothly from where the
+    // bottle currently sits to that exact target over a fixed duration.
+    // This still looks and feels like a natural spin, but the landing spot
+    // itself is genuinely unpredictable every time.
+    const randomFinalAngle = Math.random() * Math.PI * 2;
+    const extraFullSpins = 4 + Math.floor(Math.random() * 5); // 4–8 full spins
+    const currentNorm = ((this.angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    let delta = randomFinalAngle - currentNorm;
+    if (delta < 0) delta += Math.PI * 2;
+
+    this._spinStartAngle = this.angle;
+    this._spinTargetAngle = this.angle + delta + extraFullSpins * Math.PI * 2;
+    this._spinDurationFrames = 130 + Math.floor(Math.random() * 40); // ~2.2–2.8s at 60fps
+    this._spinFrame = 0;
+
     if (window.SoundFx) window.SoundFx.playHit();
   }
 
@@ -141,16 +167,17 @@ class TruthGame {
     const cy = height / 2;
 
     if (this.isSpinning) {
-      this.angle += this.angularVelocity;
-      this.angularVelocity *= 0.97;
+      this._spinFrame++;
+      const t = Math.min(this._spinFrame / this._spinDurationFrames, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic — fast start, gentle stop
+      this.angle = this._spinStartAngle + (this._spinTargetAngle - this._spinStartAngle) * eased;
 
       if (this.sync && this.sync.isHost) {
         this.sync.write('game/bottleAngle', this.angle);
       }
 
-      if (this.angularVelocity < 0.002) {
+      if (t >= 1) {
         this.isSpinning = false;
-        this.angularVelocity = 0;
         this.determineLandingPlayer();
       }
     } else if (this.sync && !this.sync.isHost) {
@@ -181,6 +208,10 @@ class TruthGame {
     // "pill" shape, which didn't read as a bottle at all.
     ctx.translate(cx, cy);
     ctx.rotate(this.angle);
+    // Shrunk down (was full-size) — on a phone the old bottle + ring
+    // combo was big enough to cover a whole face during the video call.
+    // Scaling the draw down keeps the same shape/gradients/proportions.
+    ctx.scale(0.6, 0.6);
 
     ctx.beginPath();
     ctx.moveTo(-22, 95);                                  // bottom-left
@@ -240,15 +271,15 @@ class TruthGame {
 
     // Render Turn Flow UI
     if (!this.isSpinning && this.choiceState === 'IDLE') {
-      ctx.font = '700 24px Outfit, sans-serif';
+      ctx.font = '700 22px Outfit, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('Tap / Hover Bottle to Spin!', cx, cy + 160);
+      ctx.fillText('Tap / Hover Bottle to Spin!', cx, cy + 115);
 
       if (localFingertip) {
         const fx = localFingertip.px;
         const fy = localFingertip.py;
-        if (Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2) < 100) {
+        if (Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2) < 65) {
           if (this.sync) this.sync.write('game/spinTrigger', true);
           else this.triggerSpin();
         }
@@ -264,7 +295,9 @@ class TruthGame {
   // determineLandingPlayer()'s normAngle-vs-π split, offset by -π/2 because
   // the bottle's neck points "up" (world angle -π/2) when this.angle === 0.
   renderSelectorRing(ctx, cx, cy) {
-    const r = 145;
+    // Shrunk from 145 — the old ring was large enough to sit over a whole
+    // face on a phone during the video call.
+    const r = 92;
     ctx.save();
 
     // Right half (world angle -π/2 → π/2) = this.angle in [0, π) = peerB/Blue
