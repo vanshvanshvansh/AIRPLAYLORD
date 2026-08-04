@@ -715,24 +715,62 @@
       };
       let pendingGameId = null;
 
-      // Hand-gesture sensitivity is a single value shared by both players
-      // in a match (not a separate Red/Blue setting) — it's fairer, and
-      // avoids one player picking an advantage for themselves.
-      const SHARED_SENSITIVITY_ROW = `
-            <div class="pre-game-setting-row">
-              <label>Hand Sensitivity (both players):</label>
-              <select id="settingSensitivity" class="input-field">
-                <option value="0.7">Low (0.7x)</option>
-                <option value="1.0" selected>Normal (1.0x)</option>
-                <option value="1.4">High (1.4x)</option>
-              </select>
+      function getSensitivityLabel(val) {
+        const num = parseFloat(val);
+        if (num <= 0.7) return `${num.toFixed(1)}x (Low)`;
+        if (num <= 1.2) return `${num.toFixed(1)}x (Normal)`;
+        if (num <= 2.5) return `${num.toFixed(1)}x (High)`;
+        return `${num.toFixed(1)}x (Ultra)`;
+      }
+
+      function getSensitivityLeverHTML(initialVal = 1.0) {
+        const val = parseFloat(initialVal) || 1.0;
+        return `
+          <div class="sensitivity-lever-card">
+            <div class="sensitivity-lever-header">
+              <span class="sensitivity-lever-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Hand Sensitivity Level:
+              </span>
+              <span id="settingSensValBadge" class="sensitivity-val-badge">${getSensitivityLabel(val)}</span>
             </div>
-      `;
+            <div class="sensitivity-slider-wrapper">
+              <input type="range" id="settingSensitivitySlider" class="sensitivity-slider" min="0.5" max="4.0" step="0.1" value="${val}" />
+            </div>
+            <div class="sensitivity-presets">
+              <button type="button" class="sensitivity-preset-btn ${val === 0.5 ? 'active' : ''}" data-val="0.5">0.5x Low</button>
+              <button type="button" class="sensitivity-preset-btn ${val === 1.0 ? 'active' : ''}" data-val="1.0">1.0x Normal</button>
+              <button type="button" class="sensitivity-preset-btn ${val === 2.0 ? 'active' : ''}" data-val="2.0">2.0x High</button>
+              <button type="button" class="sensitivity-preset-btn ${val === 4.0 ? 'active' : ''}" data-val="4.0">4.0x Ultra</button>
+            </div>
+          </div>
+        `;
+      }
+
+      function bindSensitivityLeverEvents(container) {
+        const slider = container.querySelector('#settingSensitivitySlider');
+        const badge = container.querySelector('#settingSensValBadge');
+        const presets = container.querySelectorAll('.sensitivity-preset-btn');
+        if (!slider || !badge) return;
+
+        const update = (v) => {
+          slider.value = v;
+          badge.textContent = getSensitivityLabel(v);
+          presets.forEach(btn => {
+            btn.classList.toggle('active', parseFloat(btn.getAttribute('data-val')) === parseFloat(v));
+          });
+        };
+
+        slider.addEventListener('input', (e) => update(parseFloat(e.target.value)));
+        presets.forEach(btn => {
+          btn.addEventListener('click', () => update(parseFloat(btn.getAttribute('data-val'))));
+        });
+      }
 
       function renderPreGameSpecificSettings(gameId, container) {
         container.innerHTML = '';
         if (gameId === 'balloon') {
-          container.innerHTML = SHARED_SENSITIVITY_ROW;
+          container.innerHTML = getSensitivityLeverHTML(1.0);
         } else if (gameId === 'paddle') {
           container.innerHTML = `
             <div class="pre-game-setting-row">
@@ -743,18 +781,8 @@
                 <option value="fast">Fast</option>
               </select>
             </div>
-            <div class="pre-game-setting-row">
-              <label>Paddle Sensitivity (both players): <span id="settingPaddleSensVal">1.0x</span></label>
-              <input type="range" id="settingPaddleSensitivity" class="input-field" min="0.5" max="4.0" step="0.1" value="1.0" />
-            </div>
+            ${getSensitivityLeverHTML(1.0)}
           `;
-          const rangeEl = document.getElementById('settingPaddleSensitivity');
-          const rangeValEl = document.getElementById('settingPaddleSensVal');
-          if (rangeEl && rangeValEl) {
-            rangeEl.addEventListener('input', () => {
-              rangeValEl.textContent = `${parseFloat(rangeEl.value).toFixed(1)}x`;
-            });
-          }
         } else if (gameId === 'tug') {
           container.innerHTML = `
             <div class="pre-game-setting-row">
@@ -776,12 +804,14 @@
                 <option value="10" selected>10 Seconds (Default)</option>
               </select>
             </div>
-            ${SHARED_SENSITIVITY_ROW}
+            ${getSensitivityLeverHTML(1.0)}
           `;
+        } else if (gameId === 'truth') {
+          container.innerHTML = getSensitivityLeverHTML(1.0);
+        } else if (gameId === 'rps') {
+          container.innerHTML = getSensitivityLeverHTML(1.0);
         }
-        // RPS has no hand-sensitivity setting — gesture recognition
-        // (rock/paper/scissors) doesn't use a sensitivity threshold, so
-        // showing the control there was a dead setting.
+        bindSensitivityLeverEvents(container);
       }
 
       function getPreGameSettings() {
@@ -789,10 +819,8 @@
         const settings = { timer };
         const ballSpeed = document.getElementById('settingBallSpeed');
         if (ballSpeed) settings.ballSpeed = ballSpeed.value;
-        const sensitivity = document.getElementById('settingSensitivity');
-        if (sensitivity) settings.sensitivity = parseFloat(sensitivity.value);
-        const paddleSensitivity = document.getElementById('settingPaddleSensitivity');
-        if (paddleSensitivity) settings.sensitivity = parseFloat(paddleSensitivity.value);
+        const sliderEl = document.getElementById('settingSensitivitySlider');
+        if (sliderEl) settings.sensitivity = parseFloat(sliderEl.value);
         const tugPoints = document.getElementById('settingTugPoints');
         if (tugPoints) settings.tugPoints = parseInt(tugPoints.value);
         const tugHold = document.getElementById('settingTugHold');
