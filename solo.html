@@ -108,18 +108,50 @@
     </div>
   </div>
 
-  <!-- Game Round Result Modal — shown the instant a game ends, whether its
-       timer ran out naturally or it was cut short via Back to Menu.
-       Populated by GameOverlayManager.showGameResultModal(). -->
+  <!-- Pre-Game Settings Modal (Solo Mode) -->
+  <div id="preGameSettingsModal" class="modal-backdrop">
+    <div class="glass-panel modal-card" style="text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 id="preGameSettingsTitle">Game Settings</h2>
+        <button id="closePreGameSettingsBtn" class="btn btn-secondary btn-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+
+      <!-- Timer & Bot Difficulty settings -->
+      <div style="margin-top: 18px; display: flex; align-items: center; gap: 12px; background: rgba(0, 0, 0, 0.3); padding: 12px 20px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); flex-wrap: wrap;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <span style="font-weight: 600; font-size: 0.95rem;">Game Timer Duration:</span>
+        <select id="timerSelector" class="input-field" style="width: 160px; padding: 6px 14px;">
+          <option value="90" selected>90 Seconds</option>
+          <option value="180">3 Minutes</option>
+          <option value="300">5 Minutes</option>
+          <option value="unlimited">Unlimited</option>
+        </select>
+
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span style="font-weight: 600; font-size: 0.95rem;">Bot Difficulty:</span>
+        <select id="difficultySelector" class="input-field" style="width: 140px; padding: 6px 14px;">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+
+      <!-- Per-game specific settings & Sensitivity Lever render here -->
+      <div id="preGameSpecificSettings" style="margin-top: 14px;"></div>
+
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button id="preGameSettingsDoneBtn" class="btn btn-primary" style="width: 100%;">Start Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Round Result Modal -->
   <div id="gameResultModal" class="modal-backdrop">
     <div class="glass-panel modal-card" style="max-width: 420px; text-align: center;">
       <div id="gameResultBanner" class="game-result-banner">🏆</div>
       <h2 id="gameResultTitle">Game Over</h2>
       <p id="gameResultWinnerText" style="color: var(--text-muted); margin-top: 6px; font-size: 1.05rem; font-weight: 700;"></p>
 
-      <!-- Truth or Dare has its own result layout (Time, then Truth, then
-           Dare, top to bottom) instead of the generic VS score row below,
-           so counts never overlap or get crammed together. -->
       <div id="truthResultBlock" class="truth-result-block" style="display: none;">
         <div id="truthResultTime" class="truth-result-time"></div>
         <div class="truth-result-section">
@@ -240,6 +272,134 @@
       }
       animationFrameLoop();
 
+      // Pre-Game Settings Wiring for Solo Practice Mode
+      const preGameModal = document.getElementById('preGameSettingsModal');
+      const preGameTitle = document.getElementById('preGameSettingsTitle');
+      const preGameSpecific = document.getElementById('preGameSpecificSettings');
+      const timerSelector = document.getElementById('timerSelector');
+      const difficultySelector = document.getElementById('difficultySelector');
+      const gameTitleMap = {
+        balloon: 'Balloon Duel',
+        paddle: 'Paddle Duel (Pong/Breakout)',
+        rps: 'RPS Showdown',
+        tug: 'Finger Tug of War',
+        truth: 'Truth or Dare — Air Spin'
+      };
+      let pendingGameId = null;
+
+      function getSensitivityLabel(val) {
+        const num = parseFloat(val);
+        if (num <= 0.7) return `${num.toFixed(1)}x (Low)`;
+        if (num <= 1.2) return `${num.toFixed(1)}x (Normal)`;
+        if (num <= 2.5) return `${num.toFixed(1)}x (High)`;
+        return `${num.toFixed(1)}x (Ultra)`;
+      }
+
+      function getSensitivityLeverHTML(initialVal = 1.0) {
+        const val = parseFloat(initialVal) || 1.0;
+        return `
+          <div class="sensitivity-lever-card">
+            <div class="sensitivity-lever-header">
+              <span class="sensitivity-lever-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Hand Sensitivity Level:
+              </span>
+              <span id="settingSensValBadge" class="sensitivity-val-badge">${getSensitivityLabel(val)}</span>
+            </div>
+            <div class="sensitivity-slider-wrapper">
+              <input type="range" id="settingSensitivitySlider" class="sensitivity-slider" min="0.5" max="4.0" step="0.1" value="${val}" />
+            </div>
+            <div class="sensitivity-presets">
+              <button type="button" class="sensitivity-preset-btn ${val === 0.5 ? 'active' : ''}" data-val="0.5">0.5x Low</button>
+              <button type="button" class="sensitivity-preset-btn ${val === 1.0 ? 'active' : ''}" data-val="1.0">1.0x Normal</button>
+              <button type="button" class="sensitivity-preset-btn ${val === 2.0 ? 'active' : ''}" data-val="2.0">2.0x High</button>
+              <button type="button" class="sensitivity-preset-btn ${val === 4.0 ? 'active' : ''}" data-val="4.0">4.0x Ultra</button>
+            </div>
+          </div>
+        `;
+      }
+
+      function bindSensitivityLeverEvents(container) {
+        const slider = container.querySelector('#settingSensitivitySlider');
+        const badge = container.querySelector('#settingSensValBadge');
+        const presets = container.querySelectorAll('.sensitivity-preset-btn');
+        if (!slider || !badge) return;
+
+        const update = (v) => {
+          slider.value = v;
+          badge.textContent = getSensitivityLabel(v);
+          presets.forEach(btn => {
+            btn.classList.toggle('active', parseFloat(btn.getAttribute('data-val')) === parseFloat(v));
+          });
+        };
+
+        slider.addEventListener('input', (e) => update(parseFloat(e.target.value)));
+        presets.forEach(btn => {
+          btn.addEventListener('click', () => update(parseFloat(btn.getAttribute('data-val'))));
+        });
+      }
+
+      function renderPreGameSpecificSettings(gameId, container) {
+        container.innerHTML = '';
+        if (gameId === 'balloon') {
+          container.innerHTML = getSensitivityLeverHTML(1.0);
+        } else if (gameId === 'paddle') {
+          container.innerHTML = `
+            <div class="pre-game-setting-row">
+              <label>Ball Speed:</label>
+              <select id="settingBallSpeed" class="input-field">
+                <option value="slow">Slow</option>
+                <option value="normal" selected>Normal (Default)</option>
+                <option value="fast">Fast</option>
+              </select>
+            </div>
+            ${getSensitivityLeverHTML(1.0)}
+          `;
+        } else if (gameId === 'tug') {
+          container.innerHTML = `
+            <div class="pre-game-setting-row">
+              <label>Simultaneous Pressure Points:</label>
+              <select id="settingTugPoints" class="input-field">
+                <option value="1">1 Point</option>
+                <option value="2">2 Points</option>
+                <option value="3" selected>3 Points (Default)</option>
+                <option value="4">4 Points</option>
+                <option value="5">5 Points</option>
+              </select>
+            </div>
+            <div class="pre-game-setting-row">
+              <label>Point Hold Duration:</label>
+              <select id="settingTugHold" class="input-field">
+                <option value="1">1 Second</option>
+                <option value="3">3 Seconds</option>
+                <option value="5">5 Seconds</option>
+                <option value="10" selected>10 Seconds (Default)</option>
+              </select>
+            </div>
+            ${getSensitivityLeverHTML(1.0)}
+          `;
+        } else if (gameId === 'truth') {
+          container.innerHTML = getSensitivityLeverHTML(1.0);
+        } else if (gameId === 'rps') {
+          container.innerHTML = getSensitivityLeverHTML(1.0);
+        }
+        bindSensitivityLeverEvents(container);
+      }
+
+      function getPreGameSettings() {
+        const timer = timerSelector.value;
+        const settings = { timer };
+        const ballSpeed = document.getElementById('settingBallSpeed');
+        if (ballSpeed) settings.ballSpeed = ballSpeed.value;
+        const sliderEl = document.getElementById('settingSensitivitySlider');
+        if (sliderEl) settings.sensitivity = parseFloat(sliderEl.value);
+        const tugPoints = document.getElementById('settingTugPoints');
+        if (tugPoints) settings.tugPoints = parseInt(tugPoints.value);
+        const tugHold = document.getElementById('settingTugHold');
+        if (tugHold) settings.tugHold = parseInt(tugHold.value);
+        return settings;
+      }
+
       // --- Game Menu / Back / Exit wiring ---
       const gamesSheet = document.getElementById('gamesBottomSheet');
       const scoreboardEl = document.getElementById('scoreboardHud');
@@ -255,24 +415,34 @@
       }
 
       function startSoloGame(gameId) {
-        const timerVal = document.getElementById('timerSelector').value;
-        window.AIRPLAY_DIFFICULTY = document.getElementById('difficultySelector').value;
+        window.AIRPLAY_DIFFICULTY = difficultySelector.value;
         gamesSheet.classList.remove('open');
         backBtn.style.display = 'flex';
-        const settings = {
-          timer: timerVal,
-          ballSpeed: 'normal',
-          sensitivity: 1.0,
-          tugPoints: 3,
-          tugHold: 10
-        };
-        overlayManager.startSyncedGame(gameId, timerVal, settings);
+        const settings = getPreGameSettings();
+        overlayManager.startSyncedGame(gameId, settings.timer, settings);
       }
 
       document.querySelectorAll('.game-select-card').forEach((card) => {
         card.onclick = debounce(() => {
-          startSoloGame(card.getAttribute('data-game'));
+          pendingGameId = card.getAttribute('data-game');
+          gamesSheet.classList.remove('open');
+          preGameTitle.textContent = gameTitleMap[pendingGameId] || 'Game Settings';
+          timerSelector.value = '90';
+          renderPreGameSpecificSettings(pendingGameId, preGameSpecific);
+          preGameModal.classList.add('active');
         });
+      });
+
+      document.getElementById('closePreGameSettingsBtn').onclick = () => {
+        preGameModal.classList.remove('active');
+        pendingGameId = null;
+      };
+
+      document.getElementById('preGameSettingsDoneBtn').onclick = debounce(() => {
+        if (!pendingGameId) return;
+        preGameModal.classList.remove('active');
+        startSoloGame(pendingGameId);
+        pendingGameId = null;
       });
 
       backBtn.onclick = debounce(() => {
