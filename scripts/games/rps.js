@@ -15,6 +15,14 @@ class RPSGame {
 
     this.dwellStart = null;
     this.dwellTime = 600; // 600ms dwell hover confirmation
+
+    // Anti-cheat: while both players are choosing a gesture, this blacks
+    // out each player's hand in the video THEY SEND to the other player
+    // (see privacyShield.js) so nobody can watch the opponent's hand over
+    // the video call and copy/counter it live. Only meaningful in synced
+    // (real opponent) play — solo mode plays against a bot that never
+    // "watches" anything.
+    this.shield = window.HandPrivacyShield ? new window.HandPrivacyShield() : null;
   }
 
   start(canvas, syncEngine) {
@@ -58,6 +66,12 @@ class RPSGame {
       if (this.countdown <= 0) {
         clearInterval(interval);
         this.roundState = 'LOCKING';
+
+        // Start hiding hands from each other the instant the round enters
+        // its choosing phase — before either player has shown anything.
+        if (this.sync && this.shield && window.activeWebRTC && window.activeHandTracker) {
+          this.shield.start(window.activeWebRTC, window.activeHandTracker);
+        }
       }
     }, 1000);
   }
@@ -65,6 +79,7 @@ class RPSGame {
   stop() {
     this.roundState = 'ROUND_END';
     clearTimeout(this._waitTimeout);
+    if (this.shield) this.shield.stop();
   }
 
   render(ctx, width, height, localFingertip, peerFingertip) {
@@ -167,6 +182,7 @@ class RPSGame {
       clearTimeout(this._waitTimeout);
       this._waitTimeout = setTimeout(() => {
         if (this.roundState === 'REVEAL' && !this.roundWinner) {
+          if (this.shield) this.shield.stop();
           this.localGesture = 'NONE';
           this.peerGesture = 'NONE';
           this.dwellStart = null;
@@ -183,6 +199,11 @@ class RPSGame {
   checkRoundResolution() {
     if (this.localGesture === 'NONE' || this.peerGesture === 'NONE') return;
     clearTimeout(this._waitTimeout);
+
+    // Both sides have now locked in a gesture — safe to reveal. Restore
+    // each player's normal (unmasked) outgoing video so hands become
+    // visible again right as the result is shown, never before.
+    if (this.shield) this.shield.stop();
 
     const g1 = this.localGesture;
     const g2 = this.peerGesture;
