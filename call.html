@@ -233,7 +233,8 @@
       <div class="custom-tags-box">
         <h4 style="color: #00f2fe;">Truth Questions (<span id="truthCount">0</span>)</h4>
         <div class="tags-container" id="truthTagsContainer">
-          <input type="text" id="truthTagInput" class="tag-input" placeholder="Type Truth question and press comma...">
+          <input type="text" id="truthTagInput" class="tag-input" placeholder="Type Truth question...">
+          <button type="button" id="addTruthTagBtn" class="add-tag-btn">+ Tag</button>
         </div>
       </div>
 
@@ -241,7 +242,8 @@
       <div class="custom-tags-box" style="margin-top: 16px;">
         <h4 style="color: #ff4e50;">Dare Questions (<span id="dareCount">0</span>)</h4>
         <div class="tags-container" id="dareTagsContainer">
-          <input type="text" id="dareTagInput" class="tag-input" placeholder="Type Dare question and press comma...">
+          <input type="text" id="dareTagInput" class="tag-input" placeholder="Type Dare question...">
+          <button type="button" id="addDareTagBtn" class="add-tag-btn dare-btn">+ Tag</button>
         </div>
       </div>
 
@@ -903,23 +905,31 @@
       const truthInput = document.getElementById('truthTagInput');
       const truthContainer = document.getElementById('truthTagsContainer');
       const truthCountEl = document.getElementById('truthCount');
+      const addTruthBtn = document.getElementById('addTruthTagBtn');
       let truthTags = [];
 
       const dareInput = document.getElementById('dareTagInput');
       const dareContainer = document.getElementById('dareTagsContainer');
       const dareCountEl = document.getElementById('dareCount');
+      const addDareBtn = document.getElementById('addDareTagBtn');
       let dareTags = [];
 
       function addTag(text, isTruth) {
-        const trimmed = text.trim().replace(/,/g, '');
-        if (!trimmed) return;
+        const parts = text.split(',');
+        parts.forEach(p => {
+          const trimmed = p.trim();
+          if (!trimmed) return;
+          if (isTruth) {
+            if (!truthTags.includes(trimmed)) truthTags.push(trimmed);
+          } else {
+            if (!dareTags.includes(trimmed)) dareTags.push(trimmed);
+          }
+        });
         if (isTruth) {
-          if (!truthTags.includes(trimmed)) truthTags.push(trimmed);
           renderTags(truthContainer, truthTags, true);
           truthCountEl.textContent = truthTags.length;
           truthInput.value = '';
         } else {
-          if (!dareTags.includes(trimmed)) dareTags.push(trimmed);
           renderTags(dareContainer, dareTags, false);
           dareCountEl.textContent = dareTags.length;
           dareInput.value = '';
@@ -928,25 +938,46 @@
 
       function renderTags(container, tagsList, isTruth) {
         container.querySelectorAll('.tag-chip').forEach(c => c.remove());
+        const inputEl = isTruth ? truthInput : dareInput;
         tagsList.forEach((tag, idx) => {
           const chip = document.createElement('div');
           chip.className = `tag-chip ${isTruth ? '' : 'dare-chip'}`;
-          chip.innerHTML = `<span>${tag}</span><button class="tag-remove-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+          chip.innerHTML = `<span>${tag}</span><button type="button" class="tag-remove-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
           chip.querySelector('.tag-remove-btn').onclick = () => {
             tagsList.splice(idx, 1);
             renderTags(container, tagsList, isTruth);
             if (isTruth) truthCountEl.textContent = tagsList.length;
             else dareCountEl.textContent = tagsList.length;
           };
-          container.insertBefore(chip, isTruth ? truthInput : dareInput);
+          container.insertBefore(chip, inputEl);
         });
       }
 
+      if (addTruthBtn) {
+        addTruthBtn.onclick = (e) => {
+          e.preventDefault();
+          addTag(truthInput.value, true);
+        };
+      }
+      if (addDareBtn) {
+        addDareBtn.onclick = (e) => {
+          e.preventDefault();
+          addTag(dareInput.value, false);
+        };
+      }
+
+      truthInput.oninput = () => {
+        if (truthInput.value.includes(',')) addTag(truthInput.value, true);
+      };
+      dareInput.oninput = () => {
+        if (dareInput.value.includes(',')) addTag(dareInput.value, false);
+      };
+
       truthInput.onkeyup = (e) => {
-        if (e.key === ',' || e.key === 'Enter') addTag(truthInput.value, true);
+        if (e.key === 'Enter') addTag(truthInput.value, true);
       };
       dareInput.onkeyup = (e) => {
-        if (e.key === ',' || e.key === 'Enter') addTag(dareInput.value, false);
+        if (e.key === 'Enter') addTag(dareInput.value, false);
       };
 
       saveBtn.onclick = () => {
