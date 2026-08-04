@@ -1,4 +1,4 @@
-// AirPlay Game 5 — Truth or Dare: Air Spin (Compact Bottle & Minimized Task Panel System)
+// AirPlay Game 5 — Truth or Dare: Air Spin (Compact Bottle & Glassy Minimized Task Panel)
 
 class TruthGame {
   constructor(overlayManager) {
@@ -11,24 +11,22 @@ class TruthGame {
     this.targetAngle = 0;
     this.selectedPlayer = null;
 
-    // Time-based spin physics (frame-rate independent — the old velocity-
-    // decay-per-frame approach ran up to ~20s on slower devices, since
-    // fewer frames per second meant fewer decay steps per real second).
     this.spinStartTime = 0;
     this.spinDuration = 0;
     this.spinStartAngle = 0;
     this.spinTargetAngle = 0;
-    this._spinTapArmed = true; // guards against writing spinTrigger every frame while hovering
+    this._spinTapArmed = true;
 
     this.choiceState = 'IDLE'; // 'IDLE', 'CHOOSING', 'PROMPT_ACTIVE'
     this.chosenType = null;
     this.currentPrompt = null;
-    this.isTaskMinimized = false;
-    this.minimizedPillEl = null;
-    this.spinAgainBtnEl = null;
 
     this.dwellStartTruth = null;
     this.dwellStartDare = null;
+    this.dwellStartTaskDone = null;
+
+    this.isPointerDown = false;
+    this.pointerPos = null;
 
     this.PLAYER_COLORS = { peerA: '#ff0844', peerB: '#2979ff' };
     this.PLAYER_LABELS = { peerA: 'P1 (Red)', peerB: 'P2 (Blue)' };
@@ -65,6 +63,35 @@ class TruthGame {
         ]
       }
     };
+
+    this.setupPointerListeners();
+  }
+
+  setupPointerListeners() {
+    if (this._pointerBound) return;
+    this._pointerBound = true;
+
+    const handleDown = (e) => {
+      this.isPointerDown = true;
+      this.pointerPos = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleMove = (e) => {
+      if (this.isPointerDown) {
+        this.pointerPos = { x: e.clientX, y: e.clientY };
+      }
+    };
+
+    const handleUp = () => {
+      this.isPointerDown = false;
+      this.pointerPos = null;
+      this.dwellStartTaskDone = null;
+    };
+
+    window.addEventListener('pointerdown', handleDown);
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
   }
 
   start(canvas, syncEngine, timerSetting = 90, extraSettings = null) {
@@ -113,7 +140,6 @@ class TruthGame {
     this.dwellStartTruth = null;
     this.dwellStartDare = null;
     this.dwellStartTaskDone = null;
-    this.dwellStartSpinAgain = null;
     this._spinTapArmed = true;
 
     if (this.sync) {
@@ -188,22 +214,22 @@ class TruthGame {
       ctx.translate(cx, cy);
       ctx.rotate(this.angle);
 
-      // Reduced size bottle silhouette (~110px height, 28px width)
+      // Compact Bottle Silhouette (~75px height, 20px width)
       ctx.beginPath();
-      ctx.moveTo(-14, 55);
-      ctx.lineTo(-14, 6);
-      ctx.quadraticCurveTo(-14, -20, -6, -32);
-      ctx.lineTo(-6, -55);
-      ctx.lineTo(6, -55);
-      ctx.lineTo(6, -32);
-      ctx.quadraticCurveTo(14, -20, 14, 6);
-      ctx.lineTo(14, 55);
-      ctx.quadraticCurveTo(14, 62, 8, 62);
-      ctx.lineTo(-8, 62);
-      ctx.quadraticCurveTo(-14, 62, -14, 55);
+      ctx.moveTo(-10, 38);
+      ctx.lineTo(-10, 4);
+      ctx.quadraticCurveTo(-10, -14, -4, -22);
+      ctx.lineTo(-4, -38);
+      ctx.lineTo(4, -38);
+      ctx.lineTo(4, -22);
+      ctx.quadraticCurveTo(10, -14, 10, 4);
+      ctx.lineTo(10, 38);
+      ctx.quadraticCurveTo(10, 43, 6, 43);
+      ctx.lineTo(-6, 43);
+      ctx.quadraticCurveTo(-10, 43, -10, 38);
       ctx.closePath();
 
-      const glassGrad = ctx.createLinearGradient(-14, 0, 14, 0);
+      const glassGrad = ctx.createLinearGradient(-10, 0, 10, 0);
       glassGrad.addColorStop(0, 'rgba(0, 200, 210, 0.65)');
       glassGrad.addColorStop(0.5, 'rgba(180, 250, 255, 0.95)');
       glassGrad.addColorStop(1, 'rgba(0, 150, 170, 0.65)');
@@ -215,17 +241,17 @@ class TruthGame {
 
       // Bottle Label
       ctx.beginPath();
-      ctx.roundRect(-14, 10, 28, 18, 3);
+      ctx.roundRect(-10, 8, 20, 13, 2);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fill();
-      ctx.font = '800 8px Outfit, sans-serif';
+      ctx.font = '800 6px Outfit, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ff0844';
-      ctx.fillText('AIRPLAY', 0, 22);
+      ctx.fillText('AIRPLAY', 0, 17);
 
       // Cap
       ctx.beginPath();
-      ctx.roundRect(-7, -64, 14, 10, 3);
+      ctx.roundRect(-5, -44, 10, 7, 2);
       ctx.fillStyle = '#ff0844';
       ctx.fill();
 
@@ -234,19 +260,16 @@ class TruthGame {
 
     // Render Turn Flow UI
     if (!this.isSpinning && this.choiceState === 'IDLE') {
-      ctx.font = '700 20px Outfit, sans-serif';
+      ctx.font = '700 18px Outfit, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('Tap / Hover Bottle to Spin!', cx, cy + 120);
+      ctx.fillText('Tap / Hover Bottle to Spin!', cx, cy + 95);
 
-      // Hand-Tracking Controlled "Spin Again" Button directly above the bottle
-      this.renderSpinAgainAboveBottle(ctx, cx, cy, localFingertip, now);
+      const activePos = localFingertip ? { x: localFingertip.px, y: localFingertip.py } : (this.isPointerDown ? this.pointerPos : null);
 
-      if (localFingertip) {
-        const fx = localFingertip.px;
-        const fy = localFingertip.py;
-        const bottleHitRadius = 70 * (this.sensitivity || 1.0);
-        if (Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2) < bottleHitRadius) {
+      if (activePos) {
+        const bottleHitRadius = 60 * (this.sensitivity || 1.0);
+        if (Math.sqrt((activePos.x - cx) ** 2 + (activePos.y - cy) ** 2) < bottleHitRadius) {
           if (this._spinTapArmed) {
             this._spinTapArmed = false;
             if (this.sync) this.sync.write('game/spinTrigger', Date.now());
@@ -255,6 +278,8 @@ class TruthGame {
         } else {
           this._spinTapArmed = true;
         }
+      } else {
+        this._spinTapArmed = true;
       }
     } else if (this.choiceState === 'CHOOSING') {
       this.renderChoiceButtons(ctx, width, height, localFingertip);
@@ -263,64 +288,9 @@ class TruthGame {
     }
   }
 
-  // Hand-Tracking Controlled Spin Again Button directly above the bottle
-  renderSpinAgainAboveBottle(ctx, cx, cy, localFingertip, now) {
-    const btnX = cx;
-    const btnY = cy - 130;
-    const btnW = 146;
-    const btnH = 36;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 18);
-    ctx.fillStyle = 'rgba(0, 242, 254, 0.22)';
-    ctx.strokeStyle = 'rgba(0, 242, 254, 0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.font = '700 13px Outfit, sans-serif';
-    ctx.fillStyle = '#00f2fe';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🔄 Spin Again', btnX, btnY);
-
-    if (localFingertip) {
-      const fx = localFingertip.px;
-      const fy = localFingertip.py;
-      const sens = this.sensitivity || 1.0;
-
-      if (Math.abs(fx - btnX) < (btnW / 2) * sens && Math.abs(fy - btnY) < (btnH / 2) * sens) {
-        if (!this.dwellStartSpinAgain) {
-          this.dwellStartSpinAgain = now;
-        } else {
-          const elapsed = now - this.dwellStartSpinAgain;
-          const progress = Math.min(elapsed / 450, 1.0);
-
-          ctx.beginPath();
-          ctx.arc(btnX, btnY, btnH / 2 + 5, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 3;
-          ctx.stroke();
-
-          if (progress >= 1.0) {
-            this.dwellStartSpinAgain = null;
-            if (this.sync) this.sync.write('game/spinTrigger', Date.now());
-            else this.triggerSpin();
-          }
-        }
-      } else {
-        this.dwellStartSpinAgain = null;
-      }
-    } else {
-      this.dwellStartSpinAgain = null;
-    }
-    ctx.restore();
-  }
-
-  // Compact Selector Ring (Radius 85px)
+  // Compact Selector Ring (Radius 60px)
   renderSelectorRing(ctx, cx, cy) {
-    const r = 85;
+    const r = 60;
     ctx.save();
 
     ctx.beginPath();
@@ -350,12 +320,12 @@ class TruthGame {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.font = '800 11px Outfit, sans-serif';
+    ctx.font = '800 10px Outfit, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = this.PLAYER_COLORS.peerA;
-    ctx.fillText('RED · P1', cx - r + 24, cy);
+    ctx.fillText('RED · P1', cx - r + 18, cy);
     ctx.fillStyle = this.PLAYER_COLORS.peerB;
-    ctx.fillText('BLUE · P2', cx + r - 24, cy);
+    ctx.fillText('BLUE · P2', cx + r - 18, cy);
 
     ctx.restore();
   }
@@ -375,59 +345,61 @@ class TruthGame {
 
   renderChoiceButtons(ctx, width, height, localFingertip) {
     const cx = width / 2;
-    const cy = height / 2 + 100;
+    const cy = height / 2 + 80;
     const now = performance.now();
 
     const isMyTurn = !this.sync || this.sync.peerRole === this.selectedPlayer;
 
-    ctx.font = `700 ${scaleFont(ctx.canvas, 22)}px Outfit, sans-serif`;
+    ctx.font = `700 ${scaleFont(ctx.canvas, 20)}px Outfit, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = this.PLAYER_COLORS[this.selectedPlayer] || '#ffffff';
     const label = this.PLAYER_LABELS[this.selectedPlayer] || 'Player';
-    wrapCanvasText(ctx, `${label} — Choose Truth or Dare!`, cx, cy - 40, width - 40, scaleFont(ctx.canvas, 24));
+    wrapCanvasText(ctx, `${label} — Choose Truth or Dare!`, cx, cy - 40, width - 40, scaleFont(ctx.canvas, 22));
 
     if (!isMyTurn) {
-      ctx.font = `600 ${scaleFont(ctx.canvas, 15)}px Outfit, sans-serif`;
+      ctx.font = `600 ${scaleFont(ctx.canvas, 14)}px Outfit, sans-serif`;
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
       ctx.fillText("Waiting for their pick…", cx, cy - 16);
     }
 
-    const btnOffset = Math.min(100, width * 0.22);
+    const btnOffset = Math.min(90, width * 0.2);
     const tx = cx - btnOffset;
     const ty = cy;
     ctx.beginPath();
-    ctx.arc(tx, ty, 42, 0, 2 * Math.PI);
+    ctx.arc(tx, ty, 38, 0, 2 * Math.PI);
     ctx.fillStyle = '#00f2fe';
     ctx.fill();
-    ctx.font = `700 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
+    ctx.font = `700 ${scaleFont(ctx.canvas, 15)}px Outfit, sans-serif`;
     ctx.fillStyle = '#040914';
     ctx.fillText('TRUTH', tx, ty + 5);
 
     const dx = cx + btnOffset;
     const dy = cy;
     ctx.beginPath();
-    ctx.arc(dx, dy, 42, 0, 2 * Math.PI);
+    ctx.arc(dx, dy, 38, 0, 2 * Math.PI);
     ctx.fillStyle = '#ff0844';
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.fillText('DARE', dx, dy + 5);
 
-    if (localFingertip && isMyTurn) {
-      const fx = localFingertip.px;
-      const fy = localFingertip.py;
+    const activePos = localFingertip ? { x: localFingertip.px, y: localFingertip.py } : (this.isPointerDown ? this.pointerPos : null);
+
+    if (activePos && isMyTurn) {
+      const fx = activePos.x;
+      const fy = activePos.y;
       const sens = this.sensitivity || 1.0;
-      const radius = 42 * sens;
+      const radius = 38 * sens;
 
       if (Math.sqrt((fx - tx) ** 2 + (fy - ty) ** 2) < radius) {
         if (!this.dwellStartTruth) this.dwellStartTruth = now;
-        else if (now - this.dwellStartTruth >= 500) this.selectChoice('TRUTH');
+        else if (now - this.dwellStartTruth >= 300) this.selectChoice('TRUTH');
       } else {
         this.dwellStartTruth = null;
       }
 
       if (Math.sqrt((fx - dx) ** 2 + (fy - dy) ** 2) < radius) {
         if (!this.dwellStartDare) this.dwellStartDare = now;
-        else if (now - this.dwellStartDare >= 500) this.selectChoice('DARE');
+        else if (now - this.dwellStartDare >= 300) this.selectChoice('DARE');
       } else {
         this.dwellStartDare = null;
       }
@@ -478,74 +450,73 @@ class TruthGame {
     }
   }
 
-  // Frosted Glass Task Popup (Transparent, Glassy UI) with Hand-Tracking Controlled Action
+  // Frosted Glass Task Popup (Transparent, Glassy UI) with mandatory 5-second Hold Action
   renderPromptCard(ctx, cx, cy, localFingertip, now) {
     ctx.save();
-    const boxWidth = Math.min(520, ctx.canvas.width - 40);
+    const boxWidth = Math.min(500, ctx.canvas.width - 32);
     const boxHeight = 220;
     const topY = cy - boxHeight / 2;
 
-    // Translucent Frosted Glass Card Fill
+    // Translucent Glassy Card Fill
     ctx.beginPath();
-    ctx.roundRect(cx - boxWidth / 2, topY, boxWidth, boxHeight, 24);
-    
+    ctx.roundRect(cx - boxWidth / 2, topY, boxWidth, boxHeight, 22);
+
     const glassGrad = ctx.createLinearGradient(0, topY, 0, topY + boxHeight);
-    glassGrad.addColorStop(0, 'rgba(24, 34, 56, 0.65)');
-    glassGrad.addColorStop(1, 'rgba(12, 18, 32, 0.75)');
+    glassGrad.addColorStop(0, 'rgba(12, 18, 32, 0.45)');
+    glassGrad.addColorStop(1, 'rgba(6, 10, 18, 0.55)');
     ctx.fillStyle = glassGrad;
     ctx.fill();
 
     // Glowing Neon Glass Border
     const isTruth = this.chosenType === 'TRUTH';
     const mainColor = isTruth ? '#00f2fe' : '#ff0844';
-    ctx.strokeStyle = isTruth ? 'rgba(0, 242, 254, 0.75)' : 'rgba(255, 8, 68, 0.75)';
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = isTruth ? 'rgba(0, 242, 254, 0.65)' : 'rgba(255, 8, 68, 0.65)';
+    ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Top Specular Glass Shine
+    // Specular Glass Shine
     ctx.beginPath();
-    ctx.roundRect(cx - boxWidth / 2 + 2, topY + 2, boxWidth - 4, 32, [22, 22, 0, 0]);
-    const shineGrad = ctx.createLinearGradient(0, topY, 0, topY + 32);
-    shineGrad.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+    ctx.roundRect(cx - boxWidth / 2 + 2, topY + 2, boxWidth - 4, 30, [20, 20, 0, 0]);
+    const shineGrad = ctx.createLinearGradient(0, topY, 0, topY + 30);
+    shineGrad.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
     shineGrad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
     ctx.fillStyle = shineGrad;
     ctx.fill();
 
-    // Title / Header
-    ctx.font = `800 ${scaleFont(ctx.canvas, 20)}px Outfit, sans-serif`;
+    // Title Header
+    ctx.font = `800 ${scaleFont(ctx.canvas, 18)}px Outfit, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = mainColor;
-    ctx.fillText(`${this.chosenType} TASK`, cx, topY + 40);
+    ctx.fillText(`${this.chosenType} TASK`, cx, topY + 38);
 
     // Question / Task Prompt Text
     ctx.font = `500 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
     ctx.fillStyle = '#ffffff';
-    wrapCanvasText(ctx, this.currentPrompt || '', cx, topY + 76, boxWidth - 50, scaleFont(ctx.canvas, 20));
+    wrapCanvasText(ctx, this.currentPrompt || '', cx, topY + 74, boxWidth - 40, scaleFont(ctx.canvas, 19));
 
-    // Hand-Tracking Controlled Action Button: "Task Done / Spin 🔄"
-    const btnW = 210;
-    const btnH = 42;
+    // Mandatory 5-Second Hold Action Button: "Spin Again 🔄"
+    const btnW = 240;
+    const btnH = 44;
     const btnX = cx;
     const btnY = topY + boxHeight - 38;
+    const HOLD_DURATION = 5000; // 5 Seconds mandatory hold
 
     ctx.beginPath();
-    ctx.roundRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 21);
-    ctx.fillStyle = isTruth ? 'rgba(0, 242, 254, 0.25)' : 'rgba(255, 8, 68, 0.25)';
+    ctx.roundRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 22);
+    ctx.fillStyle = isTruth ? 'rgba(0, 242, 254, 0.18)' : 'rgba(255, 8, 68, 0.18)';
     ctx.strokeStyle = mainColor;
     ctx.lineWidth = 1.5;
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = '700 14px Outfit, sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Task Done / Spin 🔄', btnX, btnY);
+    const activePos = localFingertip ? { x: localFingertip.px, y: localFingertip.py } : (this.isPointerDown ? this.pointerPos : null);
 
-    // Hand-Tracking Interaction Dwell Check
-    if (localFingertip) {
-      const fx = localFingertip.px;
-      const fy = localFingertip.py;
+    let progress = 0;
+    let remainingSecs = 5;
+
+    if (activePos) {
+      const fx = activePos.x;
+      const fy = activePos.y;
       const sens = this.sensitivity || 1.0;
 
       if (Math.abs(fx - btnX) < (btnW / 2) * sens && Math.abs(fy - btnY) < (btnH / 2) * sens) {
@@ -553,14 +524,18 @@ class TruthGame {
           this.dwellStartTaskDone = now;
         } else {
           const elapsed = now - this.dwellStartTaskDone;
-          const progress = Math.min(elapsed / 500, 1.0);
+          progress = Math.min(elapsed / HOLD_DURATION, 1.0);
+          remainingSecs = Math.max(1, Math.ceil((HOLD_DURATION - elapsed) / 1000));
 
-          // Animated Dwell Progress Ring around the button
-          ctx.beginPath();
-          ctx.arc(btnX, btnY, btnH / 2 + 6, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 3;
-          ctx.stroke();
+          // Draw Glowing Progress Fill Bar inside Button
+          if (progress > 0) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(btnX - btnW / 2 + 2, btnY - btnH / 2 + 2, (btnW - 4) * progress, btnH - 4, 20);
+            ctx.fillStyle = isTruth ? 'rgba(0, 242, 254, 0.55)' : 'rgba(255, 8, 68, 0.55)';
+            ctx.fill();
+            ctx.restore();
+          }
 
           if (progress >= 1.0) {
             this.dwellStartTaskDone = null;
@@ -572,6 +547,18 @@ class TruthGame {
       }
     } else {
       this.dwellStartTaskDone = null;
+    }
+
+    // Button Text with Countdown Feedback
+    ctx.font = '700 13px Outfit, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (progress > 0) {
+      ctx.fillText(`HOLD ${remainingSecs}s: SPIN AGAIN 🔄`, btnX, btnY);
+    } else {
+      ctx.fillText('Hold 5s to Spin Again 🔄', btnX, btnY);
     }
 
     ctx.restore();
