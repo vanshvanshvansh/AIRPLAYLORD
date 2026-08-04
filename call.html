@@ -176,6 +176,19 @@
         <div class="game-icon-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-8 8-4-4-6 6"/><path d="M17 11l4 4-4 4-4-4"/></svg></div>
         <h4>Finger Tug of War</h4>
         <p style="color: var(--text-muted); font-size: 0.85rem;">Pull-speed-driven marker race. Swipe up/down to pull your side!</p>
+        <button id="tugSettingsBtn" class="btn btn-secondary btn-icon" title="Customize pressure-point timing" style="position: absolute; top: 10px; right: 10px; width: 32px; height: 32px;" onclick="event.stopPropagation(); document.getElementById('tugSettingsPanel').classList.toggle('open');">⚙️</button>
+        <div id="tugSettingsPanel" class="tug-settings-panel" onclick="event.stopPropagation();">
+          <label>Point appears every (sec)
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="number" id="tugSpawnMin" class="input-field" value="0.8" min="0.2" max="5" step="0.1" style="width:70px; padding:6px 8px;"> –
+              <input type="number" id="tugSpawnMax" class="input-field" value="1.2" min="0.2" max="5" step="0.1" style="width:70px; padding:6px 8px;">
+            </div>
+          </label>
+          <label>Point stays for (sec)
+            <input type="number" id="tugLifetime" class="input-field" value="1.0" min="0.3" max="5" step="0.1" style="width:70px; padding:6px 8px;">
+          </label>
+          <p style="color: var(--text-muted); font-size: 0.75rem; margin: 0;">Defaults are the recommended sweet spot — change only if you want it faster/slower.</p>
+        </div>
       </div>
 
       <div class="game-select-card" data-game="truth">
@@ -355,6 +368,7 @@
 
   <!-- Games Engine Scripts -->
   <script src="scripts/games/overlay.js"></script>
+  <script src="scripts/games/privacyShield.js"></script>
   <script src="scripts/games/balloon.js"></script>
   <script src="scripts/games/paddle.js"></script>
   <script src="scripts/games/rps.js"></script>
@@ -435,6 +449,10 @@
       });
 
       await webrtc.initializeLocalMedia();
+      // Exposed so RPS's hand-privacy shield (see privacyShield.js) can
+      // grab the peer connection / local stream to swap the outgoing video
+      // track — same pattern as window.activeHandTracker below.
+      window.activeWebRTC = webrtc;
 
       const consentManager = new ConsentManager(syncEngine, {
         onJoinAccepted: async () => {
@@ -530,7 +548,8 @@
 
       // Settings Panel Toggle
       const settingsPanel = document.getElementById('callSettingsPanel');
-      document.getElementById('settingsBtn').onclick = () => {
+      document.getElementById('settingsBtn').onclick = (e) => {
+        e.stopPropagation();
         settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'flex' : 'none';
       };
 
@@ -546,7 +565,8 @@
       };
 
       const filterMenu = document.getElementById('filterMenu');
-      document.getElementById('filterBtn').onclick = () => {
+      document.getElementById('filterBtn').onclick = (e) => {
+        e.stopPropagation();
         filterMenu.style.display = filterMenu.style.display === 'none' ? 'flex' : 'none';
       };
       window.setFilter = (name) => {
@@ -560,7 +580,8 @@
       });
 
       const reactionBar = document.getElementById('reactionBar');
-      document.getElementById('reactionBtn').onclick = () => {
+      document.getElementById('reactionBtn').onclick = (e) => {
+        e.stopPropagation();
         reactionBar.style.display = reactionBar.style.display === 'none' ? 'flex' : 'none';
       };
       window.sendEmoji = (emoji) => {
@@ -568,10 +589,30 @@
         reactionBar.style.display = 'none';
       };
 
+      // Tap-anywhere-outside-to-close, like any normal app — previously
+      // every one of these popup panels (settings, filters, reactions)
+      // could ONLY be closed by clicking its own toggle button again (e.g.
+      // open Settings → copy invite link → have to hunt down the gear icon
+      // again just to dismiss it). Now a tap anywhere else on the page
+      // closes whichever one is open.
+      const dismissablePanels = [
+        { panel: settingsPanel, hiddenValue: 'none', shownValue: 'flex' },
+        { panel: filterMenu, hiddenValue: 'none', shownValue: 'flex' },
+        { panel: reactionBar, hiddenValue: 'none', shownValue: 'flex' }
+      ];
+      document.addEventListener('click', (e) => {
+        dismissablePanels.forEach(({ panel, hiddenValue }) => {
+          if (panel && panel.style.display !== 'none' && panel.style.display !== '' && !panel.contains(e.target)) {
+            panel.style.display = hiddenValue;
+          }
+        });
+      });
+
       document.getElementById('copyLinkBtn').onclick = debounce(() => {
         const callUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
         navigator.clipboard.writeText(callUrl);
         alert(`Invite Link Copied!\nRoom ID: ${roomId}`);
+        settingsPanel.style.display = 'none';
       });
 
       // End Call -> notify peer explicitly (so THEY see "Call Ended", not a
@@ -609,6 +650,16 @@
         card.onclick = debounce(() => {
           const gameId = card.getAttribute('data-game');
           const timerVal = document.getElementById('timerSelector').value;
+          if (gameId === 'tug') {
+            const spawnMin = parseFloat(document.getElementById('tugSpawnMin').value);
+            const spawnMax = parseFloat(document.getElementById('tugSpawnMax').value);
+            const lifetime = parseFloat(document.getElementById('tugLifetime').value);
+            window.AIRPLAY_TUG_SETTINGS = {
+              spawnMinSec: isNaN(spawnMin) ? 0.8 : spawnMin,
+              spawnMaxSec: isNaN(spawnMax) ? 1.2 : spawnMax,
+              lifetimeSec: isNaN(lifetime) ? 1.0 : lifetime
+            };
+          }
           gamesSheet.classList.remove('open');
           consentManager.sendGameInvite(gameId, timerVal);
         });
