@@ -49,8 +49,7 @@ class HandTracker {
     if (videoElement) this.videoElement = videoElement;
     if (!this.videoElement) return;
 
-    // ~25fps inference cap on desktop; a little lighter on mobile CPUs.
-    const MIN_INFERENCE_INTERVAL = (window.isMobileDevice && window.isMobileDevice()) ? 55 : 40;
+    const MIN_INFERENCE_INTERVAL = 40; // ~25fps cap for hand-tracking inference
     let lastInferenceTime = 0;
     let inferenceBusy = false;
 
@@ -67,21 +66,14 @@ class HandTracker {
     };
 
     if (typeof Camera !== 'undefined') {
-      // On phones, feeding MediaPipe a full 1280x720 frame every inference
-      // tick is a major CPU cost (this is a resize/crop of the video frame
-      // fed to the model, independent of the actual WebRTC call quality,
-      // which stays at its own resolution). Downscaling the copy handed to
-      // Hands on mobile cuts inference cost substantially with no visible
-      // impact on tracking accuracy at the distances people hold a phone.
-      const mobile = window.isMobileDevice && window.isMobileDevice();
       this.camera = new Camera(this.videoElement, {
         onFrame: async () => {
           if (this.hands && this.videoElement) {
             await maybeInfer();
           }
         },
-        width: mobile ? 640 : 1280,
-        height: mobile ? 480 : 720
+        width: 1280,
+        height: 720
       });
       this.camera.start();
     } else {
@@ -205,18 +197,6 @@ class HandTracker {
 
   drawSkeleton() {
     if (!this.canvasElement || !this.lastLandmarks || this.confidence <= 0) return;
-
-    // The skeleton is drawn onto the SAME canvas the active game renders
-    // to, but on its own cadence (tied to MediaPipe inference, ~20-25/sec)
-    // rather than the game's rAF loop (~60/sec). During an active game
-    // that canvas is cleared and fully redrawn every animation frame, so
-    // any skeleton drawn here is wiped almost immediately — pure wasted
-    // work (21 joints + up to 20 line segments + two shadowBlur draws),
-    // and on Android that waste was a real contributor to the reported
-    // lag on Balloon/Paddle. Games already render their own cursor/paddle
-    // from the same fingertip data, so skip the skeleton overlay entirely
-    // while a game is running.
-    if (window.activeOverlayManager && window.activeOverlayManager.activeGame) return;
 
     const ctx = this.canvasElement.getContext('2d');
     ctx.save();
