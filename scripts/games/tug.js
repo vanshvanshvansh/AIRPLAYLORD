@@ -1,4 +1,4 @@
-// AirPlay Game 4 — Finger Tug of War
+// AirPlay Game 4 — Finger Tug of War (v2 Customizable Pressure-Point Timing)
 
 class TugGame {
   constructor(overlayManager) {
@@ -10,16 +10,24 @@ class TugGame {
     this.isRunning = false;
 
     // --- Pressure-point tap mechanic ---------------------------------
-    // Instead of (or in addition to) a vertical swipe, small "pressure
-    // point" circles randomly spawn on each player's own half of the
-    // screen. Tapping one (via hand tracking, before it expires) gives that
-    // side a small pull. Points spawn every SPAWN_INTERVAL_MS in batches of
-    // SPAWN_BATCH_SIZE and live for POINT_LIFETIME_MS — so a player who
-    // taps quickly and accurately racks up far more pulls than one who
-    // taps slowly, since points they miss simply expire unused.
-    this.SPAWN_INTERVAL_MS = 200;
-    this.POINT_LIFETIME_MS = 1000;
+    // Small "pressure point" circles randomly spawn on each player's own
+    // half of the screen. Tapping one (via hand tracking, before it
+    // expires) gives that side a small pull.
+    //
+    // BUGFIX: this used to spawn a batch of 3 every 200ms with a 1000ms
+    // lifetime — so up to 15 points a second could be alive on screen at
+    // once, and any single one only lasted a second while 4-5 fresh
+    // batches piled in behind it. Players couldn't physically hand-track
+    // fast enough to tap them before they vanished. Points now spawn in
+    // batches of exactly 3, on a slower cadence, and the cadence itself is
+    // randomized between a min/max range (instead of one fixed number) so
+    // it doesn't feel like a metronome — all of this is configurable via
+    // `settings` passed into start(), with a sane "sweet spot" default so
+    // it plays well even if nobody customizes anything.
     this.SPAWN_BATCH_SIZE = 3;
+    this.SPAWN_MIN_MS = 800;   // default sweet spot
+    this.SPAWN_MAX_MS = 1200;  // default sweet spot
+    this.POINT_LIFETIME_MS = 1000; // default sweet spot — 1 second on screen
     this.POINT_RADIUS = 34;
     // applyPullForce() multiplies this "force" by another 0.04 internally,
     // so 0.6 → ~0.024 marker-shift per hit (roughly 19 clean hits to pull
@@ -29,6 +37,7 @@ class TugGame {
 
     this.myPoints = []; // { id, x, y, spawnedAt }
     this._lastSpawnTime = 0;
+    this._nextSpawnDelay = this.SPAWN_MIN_MS;
     this._pointIdSeq = 0;
 
     // Solo-mode Bot AI (only active when there is no syncEngine). Pulls the
@@ -37,13 +46,30 @@ class TugGame {
     this.botPullTimer = null;
   }
 
-  start(canvas, syncEngine) {
+  // Reads timing from `window.AIRPLAY_TUG_SETTINGS` (set by the game-card
+  // popover in call.html/solo.html right before the game starts — same
+  // pattern solo mode already uses for `window.AIRPLAY_DIFFICULTY`), with
+  // the constructor's defaults as the "sweet spot" fallback if nothing was
+  // customized. The 3rd positional arg is accepted for compatibility with
+  // GameOverlayManager's uniform `game.start(canvas, sync, timerSetting)`
+  // call but isn't used here — this game currently has no round timer.
+  start(canvas, syncEngine, _timerSetting) {
     this.sync = syncEngine;
     this.markerPos = 0.5;
     this.targetMarkerPos = 0.5;
     this.isRunning = true;
     this.myPoints = [];
     this._lastSpawnTime = performance.now();
+
+    const settings = window.AIRPLAY_TUG_SETTINGS || {};
+    const minSec = Number(settings.spawnMinSec);
+    const maxSec = Number(settings.spawnMaxSec);
+    const lifeSec = Number(settings.lifetimeSec);
+
+    this.SPAWN_MIN_MS = (!isNaN(minSec) && minSec > 0) ? minSec * 1000 : 800;
+    this.SPAWN_MAX_MS = (!isNaN(maxSec) && maxSec >= this.SPAWN_MIN_MS / 1000) ? maxSec * 1000 : Math.max(this.SPAWN_MIN_MS + 200, 1200);
+    this.POINT_LIFETIME_MS = (!isNaN(lifeSec) && lifeSec > 0) ? lifeSec * 1000 : 1000;
+    this._nextSpawnDelay = this.SPAWN_MIN_MS + Math.random() * (this.SPAWN_MAX_MS - this.SPAWN_MIN_MS);
 
     if (this.sync) {
       this.sync.listen('game/tugMarker', (pos) => {
@@ -122,13 +148,9 @@ class TugGame {
     const myRole = this.sync ? this.sync.peerRole : 'peerA';
     const now = performance.now();
 
-    // BUGFIX/redesign: pull force used to come from raw vertical swipe
-    // speed, which was hard to calibrate fairly (jitter vs. deliberate
-    // swipe) and didn't give players a clear, visible target to react to.
-    // Replaced with randomly-spawning pressure points on each player's own
-    // half of the screen — hand-tracked taps on a still-active point pull
-    // that side; whoever taps faster/more accurately lands more hits and
-    // pulls harder, which is a much clearer (and fairer) signal.
+    // Randomly-spawning pressure points on each player's own half of the
+    // screen — hand-tracked taps on a still-active point pull that side;
+    // whoever taps faster/more accurately lands more hits and pulls harder.
     this.updatePressurePoints(now, width, height, myRole, localFingertip);
 
     // Client lerp interpolation
@@ -187,20 +209,24 @@ class TugGame {
     this.drawPressurePoints(ctx, myRole, now);
   }
 
-  // Spawns a fresh batch of pressure points on the LOCAL player's own half
-  // of the screen every SPAWN_INTERVAL_MS, expires stale ones, and checks
-  // the local fingertip against still-active points — a hit consumes the
-  // point immediately and sends a small pull for myRole. Each device only
-  // ever manages/taps its OWN half; there's no need to sync point positions
-  // over the network (that would just add latency to a fast-tap game) since
-  // the resulting pulls already sync via the existing 'game/tugPull' path.
+  // Spawns a fresh batch of exactly SPAWN_BATCH_SIZE pressure points on the
+  // LOCAL player's own half of the screen, on a randomized cadence between
+  // SPAWN_MIN_MS and SPAWN_MAX_MS (re-rolled after every spawn), expires
+  // stale ones after POINT_LIFETIME_MS, and checks the local fingertip
+  // against still-active points — a hit consumes the point immediately and
+  // sends a small pull for myRole. Each device only ever manages/taps its
+  // OWN half; there's no need to sync point positions over the network
+  // (that would just add latency to a fast-tap game) since the resulting
+  // pulls already sync via the existing 'game/tugPull' path.
   updatePressurePoints(now, width, height, myRole, localFingertip) {
     // Expire stale points
     this.myPoints = this.myPoints.filter(p => now - p.spawnedAt < this.POINT_LIFETIME_MS);
 
-    // Spawn a new batch on a fixed cadence
-    if (now - this._lastSpawnTime >= this.SPAWN_INTERVAL_MS) {
+    // Spawn a new batch once the randomized delay has elapsed
+    if (now - this._lastSpawnTime >= this._nextSpawnDelay) {
       this._lastSpawnTime = now;
+      this._nextSpawnDelay = this.SPAWN_MIN_MS + Math.random() * (this.SPAWN_MAX_MS - this.SPAWN_MIN_MS);
+
       const isLeft = myRole === 'peerA';
       const zoneXMin = isLeft ? width * 0.08 : width * 0.58;
       const zoneXMax = isLeft ? width * 0.42 : width * 0.92;
@@ -246,27 +272,31 @@ class TugGame {
     }
   }
 
+  // Points fade in over the first ~150ms of their life (instead of
+  // appearing instantly at full strength) so they're easier to catch with
+  // hand tracking, then hold, then fade out right before expiring.
   drawPressurePoints(ctx, myRole, now) {
     if (this.myPoints.length === 0) return;
     const color = myRole === 'peerA' ? '255, 8, 68' : '41, 121, 255';
 
     ctx.save();
     for (const p of this.myPoints) {
-      const age = (now - p.spawnedAt) / this.POINT_LIFETIME_MS; // 0 → 1
-      const fade = 1 - age;
-      // Subtle pulsing ring — "invisible-ish", just enough of a circle
-      // effect to tap accurately without cluttering the screen.
+      const ageMs = now - p.spawnedAt;
+      const growIn = Math.min(ageMs / 150, 1.0);
+      const remainMs = this.POINT_LIFETIME_MS - ageMs;
+      const fadeOut = remainMs < 200 ? Math.max(remainMs / 200, 0) : 1.0;
+      const opacity = growIn * fadeOut;
       const pulse = 1 + 0.15 * Math.sin(now / 90 + p.id);
 
       ctx.beginPath();
       ctx.arc(p.x, p.y, this.POINT_RADIUS * pulse, 0, 2 * Math.PI);
-      ctx.strokeStyle = `rgba(${color}, ${0.55 * fade})`;
+      ctx.strokeStyle = `rgba(${color}, ${0.55 * opacity})`;
       ctx.lineWidth = 3;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.arc(p.x, p.y, this.POINT_RADIUS * 0.35, 0, 2 * Math.PI);
-      ctx.fillStyle = `rgba(${color}, ${0.35 * fade})`;
+      ctx.fillStyle = `rgba(${color}, ${0.35 * opacity})`;
       ctx.fill();
     }
     ctx.restore();
