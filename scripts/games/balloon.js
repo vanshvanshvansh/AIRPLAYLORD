@@ -1,4 +1,4 @@
-// AirPlay Game 1 — Balloon Duel (v2 3D Balloon Visuals & Needle Indicator)
+// AirPlay Game 1 — Balloon Duel (v3 Continuous Trickle-Spawn Balloon Supply)
 
 class BalloonGame {
   constructor(overlayManager) {
@@ -13,6 +13,25 @@ class BalloonGame {
     this.isUnlimitedTimer = false;
     this.timerInterval = null;
     this.isRunning = false;
+
+    // --- Continuous balloon supply -------------------------------------
+    // BUGFIX: balloons used to only come back once a whole 7-balloon pack
+    // of ONE color was fully cleared, and — worse — solo mode only ever
+    // created 'peerA' (red) balloons in the first place, so blue never
+    // appeared there at all. Players also reported that in the 2-player
+    // version, popping out all of one color mid-round just left that side
+    // empty until the *entire* pack was gone, instead of balloons trickling
+    // back in as the count got low.
+    // New behavior, checked every MAINTAIN_INTERVAL_MS AND right after any
+    // pop: if a color has ZERO left, refill it with a fresh full pack
+    // immediately. If it still has a few (but is below the cap), add ONE
+    // more every TRICKLE_INTERVAL_MS so the screen slowly tops back up
+    // instead of sitting empty — but it stops adding once it reaches
+    // MAX_PER_COLOR so the screen never gets overcrowded.
+    this.MAX_PER_COLOR = 6;
+    this.TRICKLE_INTERVAL_MS = 1400;
+    this.maintainInterval = null;
+    this._lastTrickle = { peerA: 0, peerB: 0 };
   }
 
   start(canvas, syncEngine, timerSetting = 45) {
@@ -21,6 +40,7 @@ class BalloonGame {
     this.balloons = [];
     this.popHoverTimes = {};
     this.popCooldowns = {};
+    this._lastTrickle = { peerA: 0, peerB: 0 };
 
     if (timerSetting === 'unlimited') {
       this.isUnlimitedTimer = true;
@@ -43,8 +63,19 @@ class BalloonGame {
         if (event) this.handleRemotePop(event);
       });
     } else {
-      this.spawnLocalBalloons(12);
+      // Solo mode: spawn BOTH colors up front (previously only red ever
+      // spawned here, so blue balloons never showed up in solo practice).
+      this.spawnPackFor('peerA', this.MAX_PER_COLOR);
+      this.spawnPackFor('peerB', this.MAX_PER_COLOR);
     }
+
+    // Runs continuously for the authoritative side (host, or solo with no
+    // sync at all) so the supply keeps topping itself up all round long,
+    // not just in reaction to a pop.
+    if (this.maintainInterval) clearInterval(this.maintainInterval);
+    this.maintainInterval = setInterval(() => {
+      if (this.isRunning) this.maintainBalloons(performance.now());
+    }, 500);
 
     this.startTimer();
   }
@@ -61,17 +92,11 @@ class BalloonGame {
 
   generateHostSchedule() {
     this.balloons = [];
-    this.spawnPackFor('peerA', 7);
-    this.spawnPackFor('peerB', 7);
+    this.spawnPackFor('peerA', this.MAX_PER_COLOR);
+    this.spawnPackFor('peerB', this.MAX_PER_COLOR);
     if (this.sync) this.sync.write('game/balloons', this.balloons);
   }
 
-  // BUGFIX: previously ALL 14 balloons (both players' colors) had to be
-  // popped before a fresh pack spawned, so a faster player who cleared all
-  // of their own color just sat there waiting on their opponent — and if
-  // the opponent stalled, no new balloons ever appeared for either side.
-  // Each player's pack is now independent: clear your color, your color
-  // respawns immediately, regardless of what the other player has done.
   spawnPackFor(owner, count) {
     for (let i = 0; i < count; i++) {
       const p = this.randomSpawnPoint();
@@ -86,7 +111,46 @@ class BalloonGame {
     }
   }
 
+  // Keeps each color's on-screen supply healthy without ever overfilling
+  // the screen. Only the authoritative side calls this (host in synced
+  // play, or the local instance in solo play — guests just receive the
+  // resulting list over 'game/balloons').
+  maintainBalloons(now) {
+    if (this.sync && !this.sync.isHost) return;
+
+    // Drop already-popped entries so this array doesn't grow forever over
+    // a long/unlimited-timer round.
+    this.balloons = this.balloons.filter(b => !b.popped);
+
+    let changed = false;
+    ['peerA', 'peerB'].forEach((role) => {
+      const activeCount = this.balloons.filter(b => b.owner === role).length;
+
+      if (activeCount === 0) {
+        // Fully cleared — bring a whole fresh pack back right away.
+        this.spawnPackFor(role, this.MAX_PER_COLOR);
+        this._lastTrickle[role] = now;
+        changed = true;
+      } else if (activeCount < this.MAX_PER_COLOR) {
+        // A few left — trickle in one more every TRICKLE_INTERVAL_MS
+        // instead of dumping a full pack, so the screen never floods.
+        if (now - (this._lastTrickle[role] || 0) >= this.TRICKLE_INTERVAL_MS) {
+          this.spawnPackFor(role, 1);
+          this._lastTrickle[role] = now;
+          changed = true;
+        }
+      }
+      // else: already at the cap, do nothing this tick.
+    });
+
+    if (changed && this.sync) {
+      this.sync.write('game/balloons', this.balloons);
+    }
+  }
+
   spawnLocalBalloons(count) {
+    // Kept for backward compatibility; start() now calls spawnPackFor
+    // directly for both colors in solo mode.
     for (let i = 0; i < count; i++) {
       const p = this.randomSpawnPoint();
       this.balloons.push({
@@ -121,6 +185,10 @@ class BalloonGame {
   stop() {
     this.isRunning = false;
     if (this.timerInterval) clearInterval(this.timerInterval);
+    if (this.maintainInterval) {
+      clearInterval(this.maintainInterval);
+      this.maintainInterval = null;
+    }
   }
 
   render(ctx, width, height, localFingertip, peerFingertip) {
@@ -249,21 +317,14 @@ class BalloonGame {
 
     if (this.sync) {
       this.sync.write('game/popEvent', { balloonId: balloon.id, role, bx, by });
-      if (this.sync.isHost) {
-        this.sync.write('game/balloons', this.balloons);
-      }
     }
 
-    // Respawn only THIS player's color once their own pack is cleared —
-    // never wait on the opponent's balloons, and never touch the
-    // opponent's still-live balloons.
-    const ownerBalloonsLeft = this.balloons.some(b => b.owner === role && !b.popped);
-    if (!ownerBalloonsLeft) {
-      if (!this.sync || this.sync.isHost) {
-        this.balloons = this.balloons.filter(b => b.owner !== role);
-        this.spawnPackFor(role, 7);
-        if (this.sync) this.sync.write('game/balloons', this.balloons);
-      }
+    // Only the authoritative side (host, or solo with no sync) restocks —
+    // this runs the same trickle-or-refill logic as the periodic tick, so
+    // popping the last balloon of a color brings that color right back
+    // instead of waiting on the next 500ms check.
+    if (!this.sync || this.sync.isHost) {
+      this.maintainBalloons(now);
     }
   }
 
