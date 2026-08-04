@@ -61,16 +61,27 @@ class RPSGame {
       this.botPreCommittedGesture = ['ROCK', 'PAPER', 'SCISSORS'][Math.floor(Math.random() * 3)];
     }
 
-    const interval = setInterval(() => {
+    // BUGFIX (black privacy-mask box leaking into whichever game gets
+    // played AFTER RPS, e.g. Paddle/Balloon): this interval was never
+    // stored/cleared, so if the round was torn down (game switched, exit
+    // button, timer ran out) WHILE it was still counting down, it kept
+    // ticking in the background. When it hit 0 it would still flip
+    // roundState to 'LOCKING' and call shield.start() — even though RPS
+    // wasn't the active game anymore, so the mask stayed stuck on top of
+    // whatever game came next. Storing it on `this` and clearing it in
+    // stop() kills it the instant the round/game actually ends.
+    if (this._countdownInterval) clearInterval(this._countdownInterval);
+    this._countdownInterval = setInterval(() => {
       this.countdown--;
       if (this.countdown <= 0) {
-        clearInterval(interval);
+        clearInterval(this._countdownInterval);
+        this._countdownInterval = null;
         this.roundState = 'LOCKING';
 
         // Start hiding hands from each other the instant the round enters
         // its choosing phase — before either player has shown anything.
         if (this.sync && this.shield && window.activeWebRTC && window.activeHandTracker) {
-          this.shield.start(window.activeWebRTC, window.activeHandTracker);
+          this._shieldToken = this.shield.start(window.activeWebRTC, window.activeHandTracker);
         }
       }
     }, 1000);
@@ -79,7 +90,11 @@ class RPSGame {
   stop() {
     this.roundState = 'ROUND_END';
     clearTimeout(this._waitTimeout);
-    if (this.shield) this.shield.stop();
+    if (this._countdownInterval) {
+      clearInterval(this._countdownInterval);
+      this._countdownInterval = null;
+    }
+    if (this.shield) this.shield.stop(this._shieldToken);
   }
 
   render(ctx, width, height, localFingertip, peerFingertip) {
@@ -161,6 +176,13 @@ class RPSGame {
       if (this.roundWinner === 'DRAW') resultText = 'DRAW!';
       else if (this.roundWinner === myRole) resultText = 'YOU WIN ROUND! 🎉';
       else if (this.roundWinner) resultText = 'OPPONENT WINS ROUND!';
+      else if (this.sync && this.localGesture !== 'NONE' && this.peerGesture === 'NONE') {
+        // Local player is locked in but still waiting on the opponent —
+        // let them know it's safe to relax their hand now; the video stays
+        // masked either way until BOTH sides are in, so there's no way to
+        // peek by waiting.
+        resultText = '✅ You\'re locked in — you can relax your hand.\nWaiting for opponent…';
+      }
 
       const maxWidth = Math.min(width - 40, 560);
       wrapCanvasText(ctx, resultText, cx, cy + 60, maxWidth, scaleFont(ctx.canvas, 50));
@@ -182,7 +204,7 @@ class RPSGame {
       clearTimeout(this._waitTimeout);
       this._waitTimeout = setTimeout(() => {
         if (this.roundState === 'REVEAL' && !this.roundWinner) {
-          if (this.shield) this.shield.stop();
+          if (this.shield) this.shield.stop(this._shieldToken);
           this.localGesture = 'NONE';
           this.peerGesture = 'NONE';
           this.dwellStart = null;
@@ -203,7 +225,7 @@ class RPSGame {
     // Both sides have now locked in a gesture — safe to reveal. Restore
     // each player's normal (unmasked) outgoing video so hands become
     // visible again right as the result is shown, never before.
-    if (this.shield) this.shield.stop();
+    if (this.shield) this.shield.stop(this._shieldToken);
 
     const g1 = this.localGesture;
     const g2 = this.peerGesture;
