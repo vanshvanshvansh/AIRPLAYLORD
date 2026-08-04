@@ -60,12 +60,20 @@
           <span class="status-dot"></span>
           <span id="localPeerTag">You (Host)</span>
         </div>
+        <div class="media-status-badges">
+          <span id="localCamOffBadge" class="media-status-badge" style="display: none;" title="Camera off"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/><line x1="2" y1="2" x2="22" y2="22"/></svg></span>
+          <span id="localMicOffBadge" class="media-status-badge" style="display: none;" title="Mic muted"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span>
+        </div>
       </div>
       <div class="video-tile remote">
         <video id="remoteVideo" class="filter-none" autoplay playsinline></video>
         <div class="peer-name-tag">
           <span class="status-dot" style="background: #00f2fe; box-shadow: 0 0 10px #00f2fe;"></span>
           <span id="remotePeerTag">Waiting for peer...</span>
+        </div>
+        <div class="media-status-badges">
+          <span id="remoteCamOffBadge" class="media-status-badge" style="display: none;" title="Camera off"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/><line x1="2" y1="2" x2="22" y2="22"/></svg></span>
+          <span id="remoteMicOffBadge" class="media-status-badge" style="display: none;" title="Mic muted"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span>
         </div>
       </div>
     </div>
@@ -141,18 +149,6 @@
       <button id="closeSheetBtn" class="btn btn-secondary btn-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
 
-    <!-- Timer Setting Bar -->
-    <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 12px; background: rgba(0, 0, 0, 0.3); padding: 12px 20px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); flex-wrap: wrap;">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-      <span style="font-weight: 600; font-size: 0.95rem;">Game Timer Duration:</span>
-      <select id="timerSelector" class="input-field" style="width: 160px; padding: 6px 14px;">
-        <option value="90" selected>90 Seconds</option>
-        <option value="180">3 Minutes</option>
-        <option value="300">5 Minutes</option>
-        <option value="unlimited">Unlimited</option>
-      </select>
-    </div>
-
     <div class="games-grid">
       <div class="game-select-card" data-game="balloon">
         <div class="game-icon-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a6 6 0 0 1 6 6c0 4-3 6.5-5 8.5-.5.5-1 .5-1.5 0C9.5 14.5 6.5 12 6.5 8A6 6 0 0 1 12 2z"/><path d="M12 16.5V22"/><path d="M10.5 19h3"/></svg></div>
@@ -182,6 +178,38 @@
         <div class="game-icon-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6l3 3-3 11-3-11 3-3z"/><circle cx="12" cy="2" r="1.5"/></svg></div>
         <h4>Truth or Dare — Air Spin</h4>
         <p style="color: var(--text-muted); font-size: 0.85rem;">Bottle spin physics, YouTube-style custom tags questions & turn reset.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pre-Game Settings Modal — shown after a game is selected, before the
+       invite is sent / gameplay starts. Duration is common to every game
+       (default 90s); #preGameSpecificSettings is where each game's own
+       extra settings render, one block per game, toggled by data-game. -->
+  <div id="preGameSettingsModal" class="modal-backdrop">
+    <div class="glass-panel modal-card" style="text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 id="preGameSettingsTitle">Game Settings</h2>
+        <button id="closePreGameSettingsBtn" class="btn btn-secondary btn-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+
+      <!-- Duration control — common to every game -->
+      <div style="margin-top: 18px; display: flex; align-items: center; gap: 12px; background: rgba(0, 0, 0, 0.3); padding: 12px 20px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); flex-wrap: wrap;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <span style="font-weight: 600; font-size: 0.95rem;">Game Timer Duration:</span>
+        <select id="timerSelector" class="input-field" style="width: 160px; padding: 6px 14px;">
+          <option value="90" selected>90 Seconds</option>
+          <option value="180">3 Minutes</option>
+          <option value="300">5 Minutes</option>
+          <option value="unlimited">Unlimited</option>
+        </select>
+      </div>
+
+      <!-- Per-game specific settings render here (populated in JS per data-game) -->
+      <div id="preGameSpecificSettings" style="margin-top: 14px;"></div>
+
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button id="preGameSettingsDoneBtn" class="btn btn-primary" style="width: 100%;">Done</button>
       </div>
     </div>
   </div>
@@ -528,22 +556,50 @@
       }
       renderLoop();
 
-      // Settings Panel Toggle
+      // Settings Panel Toggle — tap/click anywhere outside the panel (and
+      // outside the button that opens it) auto-closes it, like a standard
+      // modal/dropdown.
       const settingsPanel = document.getElementById('callSettingsPanel');
-      document.getElementById('settingsBtn').onclick = () => {
+      const settingsBtn = document.getElementById('settingsBtn');
+      settingsBtn.onclick = (e) => {
+        e.stopPropagation();
         settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'flex' : 'none';
       };
+      document.addEventListener('pointerdown', (e) => {
+        if (settingsPanel.style.display === 'none') return;
+        if (settingsPanel.contains(e.target) || settingsBtn.contains(e.target)) return;
+        settingsPanel.style.display = 'none';
+      });
 
-      // Controls Bar Actions
+      // Controls Bar Actions — mic/camera state is also written to
+      // SyncEngine (same pattern as the filter sync above) so the OTHER
+      // participant's tile can show a muted/camera-off badge too, not just
+      // the local tile.
+      const localCamOffBadge = document.getElementById('localCamOffBadge');
+      const localMicOffBadge = document.getElementById('localMicOffBadge');
+      const remoteCamOffBadge = document.getElementById('remoteCamOffBadge');
+      const remoteMicOffBadge = document.getElementById('remoteMicOffBadge');
+
       document.getElementById('micToggleBtn').onclick = () => {
         const active = webrtc.toggleAudio();
         document.getElementById('micToggleBtn').classList.toggle('active-off', !active);
+        localMicOffBadge.style.display = active ? 'none' : 'flex';
+        syncEngine.write(`session/mic/${syncEngine.peerRole}`, active);
       };
 
       document.getElementById('camToggleBtn').onclick = () => {
         const active = webrtc.toggleVideo();
         document.getElementById('camToggleBtn').classList.toggle('active-off', !active);
+        localCamOffBadge.style.display = active ? 'none' : 'flex';
+        syncEngine.write(`session/camera/${syncEngine.peerRole}`, active);
       };
+
+      syncEngine.listen(`session/mic/${syncEngine.opponentRole}`, (active) => {
+        remoteMicOffBadge.style.display = (active === false) ? 'flex' : 'none';
+      });
+      syncEngine.listen(`session/camera/${syncEngine.opponentRole}`, (active) => {
+        remoteCamOffBadge.style.display = (active === false) ? 'flex' : 'none';
+      });
 
       const filterMenu = document.getElementById('filterMenu');
       document.getElementById('filterBtn').onclick = () => {
@@ -605,13 +661,44 @@
         gamesSheet.classList.remove('open');
       };
 
+      // Selecting a game opens the pre-game settings panel (duration +
+      // that game's own settings) instead of sending the invite right
+      // away. The invite only goes out once the user taps Done.
+      const preGameModal = document.getElementById('preGameSettingsModal');
+      const preGameTitle = document.getElementById('preGameSettingsTitle');
+      const preGameSpecific = document.getElementById('preGameSpecificSettings');
+      const timerSelector = document.getElementById('timerSelector');
+      const gameTitleMap = {
+        balloon: 'Balloon Duel',
+        paddle: 'Paddle Duel (Pong/Breakout)',
+        rps: 'RPS Showdown',
+        tug: 'Finger Tug of War',
+        truth: 'Truth or Dare — Air Spin'
+      };
+      let pendingGameId = null;
+
       document.querySelectorAll('.game-select-card').forEach((card) => {
         card.onclick = debounce(() => {
-          const gameId = card.getAttribute('data-game');
-          const timerVal = document.getElementById('timerSelector').value;
+          pendingGameId = card.getAttribute('data-game');
           gamesSheet.classList.remove('open');
-          consentManager.sendGameInvite(gameId, timerVal);
+          preGameTitle.textContent = gameTitleMap[pendingGameId] || 'Game Settings';
+          timerSelector.value = '90'; // default 90s every time the panel opens
+          preGameSpecific.innerHTML = ''; // game-specific settings render here
+          preGameModal.classList.add('active');
         });
+      });
+
+      document.getElementById('closePreGameSettingsBtn').onclick = () => {
+        preGameModal.classList.remove('active');
+        pendingGameId = null;
+      };
+
+      document.getElementById('preGameSettingsDoneBtn').onclick = debounce(() => {
+        if (!pendingGameId) return;
+        const timerVal = timerSelector.value;
+        preGameModal.classList.remove('active');
+        consentManager.sendGameInvite(pendingGameId, timerVal);
+        pendingGameId = null;
       });
 
       // Setup YouTube-Style Tagged Questions UI
