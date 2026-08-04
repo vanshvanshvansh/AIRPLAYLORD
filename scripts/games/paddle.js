@@ -290,7 +290,7 @@ class PaddleGame {
     ctx.arc(bx, by, this.ball.radius, 0, 2 * Math.PI);
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 25;
+    ctx.shadowBlur = 12;
     ctx.fill();
 
     ctx.restore();
@@ -302,7 +302,7 @@ class PaddleGame {
     ctx.roundRect(x - pWidth / 2, y - 10, pWidth, 20, 10);
     ctx.fillStyle = color;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 20;
+    ctx.shadowBlur = 10;
     ctx.fill();
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
