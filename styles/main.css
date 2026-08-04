@@ -792,13 +792,49 @@ h1, h2, h3, h4 {
 
 .tag-input {
   flex: 1;
-  min-width: 150px;
+  min-width: 130px;
   background: transparent;
   border: none;
   color: white;
   font-family: var(--font-sans);
   font-size: 0.9rem;
   outline: none;
+}
+
+.add-tag-btn {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.22), rgba(79, 172, 254, 0.35));
+  border: 1px solid rgba(0, 242, 254, 0.6);
+  color: #00f2fe;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.add-tag-btn:hover, .add-tag-btn:active {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.45), rgba(79, 172, 254, 0.6));
+  border-color: #00f2fe;
+  transform: scale(1.05);
+  box-shadow: 0 0 18px rgba(0, 242, 254, 0.45);
+}
+
+.add-tag-btn.dare-btn {
+  background: linear-gradient(135deg, rgba(255, 8, 68, 0.22), rgba(255, 78, 80, 0.35));
+  border-color: rgba(255, 8, 68, 0.6);
+  color: #ff4e50;
+  box-shadow: 0 0 12px rgba(255, 8, 68, 0.2);
+}
+
+.add-tag-btn.dare-btn:hover, .add-tag-btn.dare-btn:active {
+  background: linear-gradient(135deg, rgba(255, 8, 68, 0.45), rgba(255, 78, 80, 0.6));
+  border-color: #ff4e50;
+  box-shadow: 0 0 18px rgba(255, 8, 68, 0.45);
 }
 
 .toggle-switch-label {
@@ -856,6 +892,8 @@ h1, h2, h3, h4 {
   .hero-title { font-size: 2.5rem; }
   .video-grid { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
   .video-grid.single-peer { grid-template-rows: 1fr; }
+  .video-tile { order: 2; } /* Local video (me) at bottom */
+  .video-tile.remote { order: 1; } /* Remote video (friend) at top */
   .actions-grid { grid-template-columns: 1fr; }
   .scoreboard-hud { width: 92%; justify-content: space-between; gap: 10px; padding: 8px 14px; }
   .summary-grid { grid-template-columns: 1fr; }
