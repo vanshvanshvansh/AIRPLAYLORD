@@ -245,6 +245,40 @@ class HandTracker {
     ctx.restore();
   }
 
+  // Bounding box around the current hand, in the RAW (unmirrored) video
+  // frame's pixel space at the given target resolution — i.e. matching
+  // what you'd get from ctx.drawImage(videoElement, 0, 0, targetW, targetH).
+  // Used by the RPS privacy shield to black out the hand in the OUTGOING
+  // video before it's sent to the peer. Deliberately does NOT use the
+  // mirrored/calibrated coordinates the on-screen cursor uses — those are
+  // flipped for the local selfie-view display, but raw camera frame data
+  // (which is what drawImage reads) is never actually flipped.
+  getHandBoundingBox(targetW, targetH, paddingRatio = 0.35) {
+    if (!this.lastLandmarks || this.confidence <= 0) return null;
+
+    let minX = 1, minY = 1, maxX = 0, maxY = 0;
+    this.lastLandmarks.forEach((lm) => {
+      minX = Math.min(minX, lm.x);
+      maxX = Math.max(maxX, lm.x);
+      minY = Math.min(minY, lm.y);
+      maxY = Math.max(maxY, lm.y);
+    });
+
+    const padX = (maxX - minX) * paddingRatio + 0.035;
+    const padY = (maxY - minY) * paddingRatio + 0.035;
+    minX = Math.max(0, minX - padX);
+    maxX = Math.min(1, maxX + padX);
+    minY = Math.max(0, minY - padY);
+    maxY = Math.min(1, maxY + padY);
+
+    return {
+      x: minX * targetW,
+      y: minY * targetH,
+      width: (maxX - minX) * targetW,
+      height: (maxY - minY) * targetH
+    };
+  }
+
   classifyGesture(landmarks) {
     if (!landmarks) return 'NONE';
     const wrist = landmarks[0];
