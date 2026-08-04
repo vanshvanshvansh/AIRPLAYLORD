@@ -67,9 +67,10 @@ class TruthGame {
     };
   }
 
-  start(canvas, syncEngine) {
+  start(canvas, syncEngine, timerSetting = 90, extraSettings = null) {
     this.sync = syncEngine;
     this.tdCounts = { peerA: { truth: 0, dare: 0 }, peerB: { truth: 0, dare: 0 } };
+    this.sensitivity = (extraSettings && extraSettings.sensitivity) ? parseFloat(extraSettings.sensitivity) : 1.0;
     this.resetTurnState();
 
     if (this.sync) {
@@ -88,9 +89,6 @@ class TruthGame {
           this.currentPrompt = stateData.currentPrompt;
           this.selectedPlayer = stateData.selectedPlayer;
           if (stateData.tdCounts) this.tdCounts = stateData.tdCounts;
-          if (stateData.isTaskMinimized !== undefined) {
-            this.setTaskMinimizedLocally(stateData.isTaskMinimized);
-          }
         }
       });
       this.sync.listen('game/customQuestions', (data) => {
@@ -114,48 +112,37 @@ class TruthGame {
     this.currentPrompt = null;
     this.dwellStartTruth = null;
     this.dwellStartDare = null;
+    this.dwellStartTaskDone = null;
+    this.dwellStartSpinAgain = null;
     this._spinTapArmed = true;
-    this.setTaskMinimizedLocally(false);
-    this.removeMinimizedPill();
-    this.removeSpinAgainButton();
 
     if (this.sync) {
       this.sync.write('game/truthState', {
         choiceState: 'IDLE',
         chosenType: null,
         currentPrompt: null,
-        selectedPlayer: null,
-        isTaskMinimized: false
+        selectedPlayer: null
       });
     }
   }
 
   stop() {
     this.isSpinning = false;
-    this.removeMinimizedPill();
-    this.removeSpinAgainButton();
   }
 
   triggerSpin() {
     if (this.isSpinning) return;
-    this.removeMinimizedPill();
-    this.removeSpinAgainButton();
-    this.isTaskMinimized = false;
     this.isSpinning = true;
     this.choiceState = 'IDLE';
     this.currentPrompt = null;
 
-    // Time-based spin (frame-rate independent): always finishes within
-    // 3.2s-4.7s (hard cap under the 5s max), and the landing angle is
-    // pre-committed here — biased well inside one player's half so the
-    // bottle can never rest ambiguously near the Red/Blue boundary.
     this.spinStartTime = performance.now();
     this.spinDuration = 3200 + Math.random() * 1500;
     this.spinStartAngle = this.angle;
 
-    const extraTurns = 4 + Math.random() * 3; // 4-7 full extra rotations
+    const extraTurns = 4 + Math.random() * 3;
     const targetPlayer = Math.random() < 0.5 ? 'peerA' : 'peerB';
-    const SAFE_MARGIN = 0.35; // radians (~20°) kept clear of the 0/PI boundary on each side
+    const SAFE_MARGIN = 0.35;
     const halfStart = targetPlayer === 'peerA' ? Math.PI : 0;
     const usableSpan = Math.PI - SAFE_MARGIN * 2;
     const landingAngleNorm = halfStart + SAFE_MARGIN + Math.random() * usableSpan;
@@ -171,11 +158,12 @@ class TruthGame {
   render(ctx, width, height, localFingertip, peerFingertip) {
     const cx = width / 2;
     const cy = height / 2;
+    const now = performance.now();
 
     if (this.isSpinning) {
       const elapsed = performance.now() - this.spinStartTime;
       const t = Math.min(elapsed / this.spinDuration, 1);
-      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic — fast start, gentle stop
+      const eased = 1 - Math.pow(1 - t, 3);
       this.angle = this.spinStartAngle + (this.spinTargetAngle - this.spinStartAngle) * eased;
 
       if (this.sync && this.sync.isHost) {
@@ -191,8 +179,7 @@ class TruthGame {
       this.angle = SyncEngine.lerp(this.angle, this.targetAngle, 0.15);
     }
 
-    // Render Compact Spinner Circle & Bottle (Only when IDLE or CHOOSING, or when task is MINIMIZED)
-    const showBottle = this.choiceState === 'IDLE' || this.choiceState === 'CHOOSING' || this.isTaskMinimized || this.isSpinning;
+    const showBottle = this.choiceState === 'IDLE' || this.choiceState === 'CHOOSING' || this.isSpinning;
 
     if (showBottle) {
       this.renderSelectorRing(ctx, cx, cy);
@@ -201,7 +188,7 @@ class TruthGame {
       ctx.translate(cx, cy);
       ctx.rotate(this.angle);
 
-      // Reduced size bottle silhouette (~110px height, 28px width) so it never covers face tiles
+      // Reduced size bottle silhouette (~110px height, 28px width)
       ctx.beginPath();
       ctx.moveTo(-14, 55);
       ctx.lineTo(-14, 6);
@@ -252,20 +239,16 @@ class TruthGame {
       ctx.fillStyle = '#ffffff';
       ctx.fillText('Tap / Hover Bottle to Spin!', cx, cy + 120);
 
+      // Hand-Tracking Controlled "Spin Again" Button directly above the bottle
+      this.renderSpinAgainAboveBottle(ctx, cx, cy, localFingertip, now);
+
       if (localFingertip) {
         const fx = localFingertip.px;
         const fy = localFingertip.py;
-        if (Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2) < 70) {
+        const bottleHitRadius = 70 * (this.sensitivity || 1.0);
+        if (Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2) < bottleHitRadius) {
           if (this._spinTapArmed) {
             this._spinTapArmed = false;
-            // BUGFIX (bottle sometimes never spins, for either player):
-            // this used to write a constant `true`. Firebase's 'value'
-            // listener only fires on an actual data change — writing the
-            // exact same value again (which happens whenever the previous
-            // round's spinTrigger was also `true`) produced no event at
-            // all on the host, so the tap silently did nothing. A unique
-            // timestamp guarantees the value always changes, so the host
-            // always receives the trigger and always spins.
             if (this.sync) this.sync.write('game/spinTrigger', Date.now());
             else this.triggerSpin();
           }
@@ -275,9 +258,64 @@ class TruthGame {
       }
     } else if (this.choiceState === 'CHOOSING') {
       this.renderChoiceButtons(ctx, width, height, localFingertip);
-    } else if (this.choiceState === 'PROMPT_ACTIVE' && !this.isTaskMinimized) {
-      this.renderPromptCard(ctx, cx, cy, localFingertip);
+    } else if (this.choiceState === 'PROMPT_ACTIVE') {
+      this.renderPromptCard(ctx, cx, cy, localFingertip, now);
     }
+  }
+
+  // Hand-Tracking Controlled Spin Again Button directly above the bottle
+  renderSpinAgainAboveBottle(ctx, cx, cy, localFingertip, now) {
+    const btnX = cx;
+    const btnY = cy - 130;
+    const btnW = 146;
+    const btnH = 36;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 18);
+    ctx.fillStyle = 'rgba(0, 242, 254, 0.22)';
+    ctx.strokeStyle = 'rgba(0, 242, 254, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '700 13px Outfit, sans-serif';
+    ctx.fillStyle = '#00f2fe';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🔄 Spin Again', btnX, btnY);
+
+    if (localFingertip) {
+      const fx = localFingertip.px;
+      const fy = localFingertip.py;
+      const sens = this.sensitivity || 1.0;
+
+      if (Math.abs(fx - btnX) < (btnW / 2) * sens && Math.abs(fy - btnY) < (btnH / 2) * sens) {
+        if (!this.dwellStartSpinAgain) {
+          this.dwellStartSpinAgain = now;
+        } else {
+          const elapsed = now - this.dwellStartSpinAgain;
+          const progress = Math.min(elapsed / 450, 1.0);
+
+          ctx.beginPath();
+          ctx.arc(btnX, btnY, btnH / 2 + 5, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          if (progress >= 1.0) {
+            this.dwellStartSpinAgain = null;
+            if (this.sync) this.sync.write('game/spinTrigger', Date.now());
+            else this.triggerSpin();
+          }
+        }
+      } else {
+        this.dwellStartSpinAgain = null;
+      }
+    } else {
+      this.dwellStartSpinAgain = null;
+    }
+    ctx.restore();
   }
 
   // Compact Selector Ring (Radius 85px)
@@ -377,15 +415,17 @@ class TruthGame {
     if (localFingertip && isMyTurn) {
       const fx = localFingertip.px;
       const fy = localFingertip.py;
+      const sens = this.sensitivity || 1.0;
+      const radius = 42 * sens;
 
-      if (Math.sqrt((fx - tx) ** 2 + (fy - ty) ** 2) < 42) {
+      if (Math.sqrt((fx - tx) ** 2 + (fy - ty) ** 2) < radius) {
         if (!this.dwellStartTruth) this.dwellStartTruth = now;
         else if (now - this.dwellStartTruth >= 500) this.selectChoice('TRUTH');
       } else {
         this.dwellStartTruth = null;
       }
 
-      if (Math.sqrt((fx - dx) ** 2 + (fy - dy) ** 2) < 42) {
+      if (Math.sqrt((fx - dx) ** 2 + (fy - dy) ** 2) < radius) {
         if (!this.dwellStartDare) this.dwellStartDare = now;
         else if (now - this.dwellStartDare >= 500) this.selectChoice('DARE');
       } else {
@@ -423,7 +463,6 @@ class TruthGame {
 
     this.currentPrompt = chosenQuestion;
     this.choiceState = 'PROMPT_ACTIVE';
-    this.isTaskMinimized = false;
 
     if (!this.tdCounts[targetPlayer]) this.tdCounts[targetPlayer] = { truth: 0, dare: 0 };
     this.tdCounts[targetPlayer][type === 'TRUTH' ? 'truth' : 'dare']++;
@@ -434,164 +473,111 @@ class TruthGame {
         chosenType: this.chosenType,
         currentPrompt: this.currentPrompt,
         selectedPlayer: this.selectedPlayer,
-        tdCounts: this.tdCounts,
-        isTaskMinimized: false
+        tdCounts: this.tdCounts
       });
     }
   }
 
-  renderPromptCard(ctx, cx, cy, localFingertip) {
+  // Frosted Glass Task Popup (Transparent, Glassy UI) with Hand-Tracking Controlled Action
+  renderPromptCard(ctx, cx, cy, localFingertip, now) {
     ctx.save();
-    const boxWidth = Math.min(500, ctx.canvas.width - 40);
-    const boxHeight = 175;
+    const boxWidth = Math.min(520, ctx.canvas.width - 40);
+    const boxHeight = 220;
     const topY = cy - boxHeight / 2;
 
-    // Main Card Background
+    // Translucent Frosted Glass Card Fill
     ctx.beginPath();
-    ctx.roundRect(cx - boxWidth / 2, topY, boxWidth, boxHeight, 20);
-    ctx.fillStyle = 'rgba(14, 20, 32, 0.95)';
-    ctx.strokeStyle = this.chosenType === 'TRUTH' ? '#00f2fe' : '#ff0844';
-    ctx.lineWidth = 2.5;
+    ctx.roundRect(cx - boxWidth / 2, topY, boxWidth, boxHeight, 24);
+    
+    const glassGrad = ctx.createLinearGradient(0, topY, 0, topY + boxHeight);
+    glassGrad.addColorStop(0, 'rgba(24, 34, 56, 0.65)');
+    glassGrad.addColorStop(1, 'rgba(12, 18, 32, 0.75)');
+    ctx.fillStyle = glassGrad;
     ctx.fill();
+
+    // Glowing Neon Glass Border
+    const isTruth = this.chosenType === 'TRUTH';
+    const mainColor = isTruth ? '#00f2fe' : '#ff0844';
+    ctx.strokeStyle = isTruth ? 'rgba(0, 242, 254, 0.75)' : 'rgba(255, 8, 68, 0.75)';
+    ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // Title
-    ctx.font = `700 ${scaleFont(ctx.canvas, 20)}px Outfit, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = this.chosenType === 'TRUTH' ? '#00f2fe' : '#ff0844';
-    ctx.fillText(`${this.chosenType}:`, cx, topY + 36);
+    // Top Specular Glass Shine
+    ctx.beginPath();
+    ctx.roundRect(cx - boxWidth / 2 + 2, topY + 2, boxWidth - 4, 32, [22, 22, 0, 0]);
+    const shineGrad = ctx.createLinearGradient(0, topY, 0, topY + 32);
+    shineGrad.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+    shineGrad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+    ctx.fillStyle = shineGrad;
+    ctx.fill();
 
-    // Question Text
+    // Title / Header
+    ctx.font = `800 ${scaleFont(ctx.canvas, 20)}px Outfit, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = mainColor;
+    ctx.fillText(`${this.chosenType} TASK`, cx, topY + 40);
+
+    // Question / Task Prompt Text
     ctx.font = `500 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
     ctx.fillStyle = '#ffffff';
-    wrapCanvasText(ctx, this.currentPrompt || '', cx, topY + 72, boxWidth - 40, scaleFont(ctx.canvas, 20));
+    wrapCanvasText(ctx, this.currentPrompt || '', cx, topY + 76, boxWidth - 50, scaleFont(ctx.canvas, 20));
 
-    // Minimize Button [ _ Minimize ] at top-right corner of card
-    const minBtnX = cx + boxWidth / 2 - 54;
-    const minBtnY = topY + 24;
+    // Hand-Tracking Controlled Action Button: "Task Done / Spin 🔄"
+    const btnW = 210;
+    const btnH = 42;
+    const btnX = cx;
+    const btnY = topY + boxHeight - 38;
+
     ctx.beginPath();
-    ctx.roundRect(minBtnX - 42, minBtnY - 14, 84, 28, 14);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    ctx.lineWidth = 1;
+    ctx.roundRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 21);
+    ctx.fillStyle = isTruth ? 'rgba(0, 242, 254, 0.25)' : 'rgba(255, 8, 68, 0.25)';
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = 1.5;
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = '600 12px Outfit, sans-serif';
+    ctx.font = '700 14px Outfit, sans-serif';
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('— Minimize', minBtnX, minBtnY);
+    ctx.fillText('Task Done / Spin 🔄', btnX, btnY);
 
-    // NOTE: the "Spin Again" button used to live here, but an accidental
-    // tap on it while reading the task would silently end the turn early.
-    // It now only appears (as a separate on-screen button) once this task
-    // has been minimized — see showSpinAgainButton().
-    ctx.font = '500 12px Outfit, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-    ctx.fillText('Minimize to spin again', cx, topY + boxHeight - 20);
-
-    // Interaction check (minimize only)
+    // Hand-Tracking Interaction Dwell Check
     if (localFingertip) {
       const fx = localFingertip.px;
       const fy = localFingertip.py;
+      const sens = this.sensitivity || 1.0;
 
-      if (Math.abs(fx - minBtnX) < 42 && Math.abs(fy - minBtnY) < 14) {
-        this.minimizeTask();
+      if (Math.abs(fx - btnX) < (btnW / 2) * sens && Math.abs(fy - btnY) < (btnH / 2) * sens) {
+        if (!this.dwellStartTaskDone) {
+          this.dwellStartTaskDone = now;
+        } else {
+          const elapsed = now - this.dwellStartTaskDone;
+          const progress = Math.min(elapsed / 500, 1.0);
+
+          // Animated Dwell Progress Ring around the button
+          ctx.beginPath();
+          ctx.arc(btnX, btnY, btnH / 2 + 6, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          if (progress >= 1.0) {
+            this.dwellStartTaskDone = null;
+            this.spinAgainFromTask();
+          }
+        }
+      } else {
+        this.dwellStartTaskDone = null;
       }
+    } else {
+      this.dwellStartTaskDone = null;
     }
 
     ctx.restore();
   }
 
-  minimizeTask() {
-    this.setTaskMinimizedLocally(true);
-    if (this.sync) {
-      this.sync.write('game/truthState', {
-        choiceState: this.choiceState,
-        chosenType: this.chosenType,
-        currentPrompt: this.currentPrompt,
-        selectedPlayer: this.selectedPlayer,
-        tdCounts: this.tdCounts,
-        isTaskMinimized: true
-      });
-    }
-  }
-
-  setTaskMinimizedLocally(minimized) {
-    this.isTaskMinimized = minimized;
-    if (minimized && this.currentPrompt) {
-      this.showMinimizedPill();
-      // "Spin Again" only ever appears once the task has been minimized
-      // (i.e. tucked away / marked done with) — never while the task
-      // popup itself is open, so it can't be tapped by accident.
-      this.showSpinAgainButton();
-    } else {
-      this.removeMinimizedPill();
-      this.removeSpinAgainButton();
-    }
-  }
-
-  showMinimizedPill() {
-    if (!this.minimizedPillEl) {
-      const pill = document.createElement('div');
-      pill.className = `minimized-task-pill ${this.chosenType === 'DARE' ? 'dare-pill' : ''}`;
-      pill.onclick = () => {
-        this.setTaskMinimizedLocally(false);
-        if (this.sync) {
-          this.sync.write('game/truthState', {
-            choiceState: this.choiceState,
-            chosenType: this.chosenType,
-            currentPrompt: this.currentPrompt,
-            selectedPlayer: this.selectedPlayer,
-            tdCounts: this.tdCounts,
-            isTaskMinimized: false
-          });
-        }
-      };
-      document.body.appendChild(pill);
-      this.minimizedPillEl = pill;
-    }
-
-    const icon = this.chosenType === 'TRUTH' ? '🔍 Truth:' : '🎯 Dare:';
-    this.minimizedPillEl.textContent = `${icon} "${this.currentPrompt}" (Tap to open)`;
-    this.minimizedPillEl.style.display = 'flex';
-  }
-
-  removeMinimizedPill() {
-    if (this.minimizedPillEl) {
-      this.minimizedPillEl.remove();
-      this.minimizedPillEl = null;
-    }
-  }
-
-  showSpinAgainButton() {
-    if (!this.spinAgainBtnEl) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'truth-spin-again-btn';
-      btn.textContent = '🔄 Spin Again';
-      btn.onclick = () => this.spinAgainFromMinimized();
-      document.body.appendChild(btn);
-      this.spinAgainBtnEl = btn;
-    }
-    this.spinAgainBtnEl.style.display = 'flex';
-  }
-
-  removeSpinAgainButton() {
-    if (this.spinAgainBtnEl) {
-      this.spinAgainBtnEl.remove();
-      this.spinAgainBtnEl = null;
-    }
-  }
-
-  // Reliably starts a fresh spin from the minimized state — routed through
-  // the same host-authoritative spinTrigger path (with a unique timestamp,
-  // see the IDLE tap handler above) that the bottle tap itself uses, so it
-  // works the same way regardless of which player taps it.
-  spinAgainFromMinimized() {
-    this.removeMinimizedPill();
-    this.removeSpinAgainButton();
+  spinAgainFromTask() {
     this.resetTurnState();
     if (this.sync) this.sync.write('game/spinTrigger', Date.now());
     else this.triggerSpin();
