@@ -276,7 +276,11 @@ class TugGame {
         this.myPoints = stillActive;
         const force = Math.min(hits * this.PULL_PER_HIT, 1.0);
         if (this.sync) {
-          this.sync.write('game/tugPull', { role: myRole, force });
+          if (this.sync.isHost) {
+            this.applyPullForce(myRole, force);
+          } else {
+            this.sync.write('game/tugPull', { role: myRole, force });
+          }
         } else {
           this.applyPullForce('peerA', force);
         }
