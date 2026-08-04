@@ -246,7 +246,7 @@ class BalloonGame {
   checkHoverPop(fingertip, myRole, width, height, now) {
     const fx = fingertip.px;
     const fy = fingertip.py;
-    const touchBonus = 12 * this.sensitivity;
+    const touchBonus = 18 * Math.max(0.5, Math.min(4.0, this.sensitivity));
 
     for (let i = 0; i < this.balloons.length; i++) {
       const b = this.balloons[i];
