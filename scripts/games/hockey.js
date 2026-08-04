@@ -191,7 +191,7 @@ class HockeyGame {
     ctx.arc(px, py, this.puck.radius, 0, 2 * Math.PI);
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = '#00f2fe';
-    ctx.shadowBlur = 25;
+    ctx.shadowBlur = 12;
     ctx.fill();
 
     ctx.restore();
@@ -203,7 +203,7 @@ class HockeyGame {
     ctx.arc(x, y, 35, 0, 2 * Math.PI);
     ctx.fillStyle = color;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 20;
+    ctx.shadowBlur = 10;
     ctx.fill();
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#ffffff';
