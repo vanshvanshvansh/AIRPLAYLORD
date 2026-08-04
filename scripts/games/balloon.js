@@ -227,29 +227,42 @@ class BalloonGame {
       ctx.fillStyle = mainColor;
       ctx.fill();
 
-      // 3D Glossy Sphere Fill
-      const grad = ctx.createRadialGradient(
-        bx - b.radius * 0.35, by - b.radius * 0.35, b.radius * 0.1,
-        bx, by, b.radius
-      );
-      if (isPink) {
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.3, '#ff4e50');
-        grad.addColorStop(0.85, '#ff0844');
-        grad.addColorStop(1, '#8b0024');
-      } else {
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.3, '#4facfe');
-        grad.addColorStop(0.85, '#00f2fe');
-        grad.addColorStop(1, '#0072ff');
+      // Perf: createRadialGradient() used to run fresh for EVERY balloon on
+      // EVERY frame (up to 12 balloons × 60fps = 720 gradient objects/sec)
+      // — a real contributor to the "laggy" feel on mid-range phones. Cache
+      // one gradient per (color, radius-bucket) and reuse it instead.
+      const radiusBucket = Math.round(b.radius);
+      const gradKey = (isPink ? 'A' : 'B') + radiusBucket;
+      let grad = this._gradCache && this._gradCache[gradKey];
+      if (!grad) {
+        if (!this._gradCache) this._gradCache = {};
+        grad = ctx.createRadialGradient(
+          -b.radius * 0.35, -b.radius * 0.35, b.radius * 0.1,
+          0, 0, b.radius
+        );
+        if (isPink) {
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.3, '#ff4e50');
+          grad.addColorStop(0.85, '#ff0844');
+          grad.addColorStop(1, '#8b0024');
+        } else {
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.3, '#4facfe');
+          grad.addColorStop(0.85, '#00f2fe');
+          grad.addColorStop(1, '#0072ff');
+        }
+        this._gradCache[gradKey] = grad;
       }
 
+      ctx.save();
+      ctx.translate(bx, by);
       ctx.beginPath();
-      ctx.arc(bx, by, b.radius, 0, 2 * Math.PI);
+      ctx.arc(0, 0, b.radius, 0, 2 * Math.PI);
       ctx.fillStyle = grad;
       ctx.shadowColor = mainColor;
-      ctx.shadowBlur = 20;
+      ctx.shadowBlur = 12;
       ctx.fill();
+      ctx.restore();
 
       // Curved Specular Highlight Shine
       ctx.beginPath();
