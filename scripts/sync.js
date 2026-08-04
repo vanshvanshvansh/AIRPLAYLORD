@@ -47,7 +47,18 @@ class SyncEngine {
     this.dataChannel = null;
     this.REALTIME_PATHS = new Set([
       'game/paddleBall', 'game/paddleInput', 'game/tugMarker',
-      'game/tugPull', 'game/puck', 'game/bottleAngle'
+      'game/tugPull', 'game/puck', 'game/bottleAngle',
+      // BUGFIX (the actual main source of the "everything feels laggy"
+      // complaints across every single game, not just Paddle): the shared
+      // fingertip-cursor position gets written to 'inputs/<role>' from the
+      // universal render loop 60 TIMES A SECOND regardless of which game
+      // is active. That path wasn't in this set, so every one of those 60
+      // writes/sec was going through a full Firebase .set() round-trip
+      // instead of the already-open peer-to-peer WebRTC data channel —
+      // by far the most expensive, highest-frequency sync call in the
+      // entire app. Routing it over the data channel (like the other
+      // realtime paths above) removes that bottleneck everywhere at once.
+      'inputs/peerA', 'inputs/peerB'
     ]);
 
     this.initTransport();
