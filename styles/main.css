@@ -623,9 +623,32 @@ h1, h2, h3, h4 {
 
 .modal-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
   margin-top: 24px;
+}
+
+/* BUGFIX: buttons here were left to their natural (shrink-to-fit) width
+   with no wrap rule, so a short "Decline" next to a long "Accept & Play"
+   could overflow a narrow phone screen — the row would then either clip
+   or let just the long button's text wrap onto 2 lines while the other
+   stayed 1 line, making the pair look crooked/misaligned. Giving every
+   modal-action button equal flexible width (and stacking them cleanly on
+   very narrow screens) fixes this everywhere at once, since every
+   Accept/Decline, Save, and Close button in the app uses .modal-actions. */
+.modal-actions .btn {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column;
+  }
+  .modal-actions .btn {
+    width: 100%;
+  }
 }
 
 /* Bottom Sheet Game Launcher */
@@ -685,6 +708,53 @@ h1, h2, h3, h4 {
 
 .game-icon-badge {
   font-size: 2rem;
+}
+
+/* Game Result Modal — scoreboard section (previously completely
+   unstyled, so labels/values just ran together as plain inline text). */
+.game-result-banner {
+  font-size: 3.2rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.game-result-scores {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.game-result-score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.game-result-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.game-result-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffffff;
+  word-break: break-word;
+  text-align: center;
+}
+
+.game-result-vs {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Finger Tug of War — pre-round customization popover (min/max pressure
