@@ -1,0 +1,1025 @@
+/* AirPlay — Master Design System & Styling (v2 Updated) */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --bg-dark: #090d16;
+  --bg-card: rgba(18, 24, 38, 0.75);
+  --bg-card-hover: rgba(28, 36, 56, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-glow: rgba(0, 242, 254, 0.15);
+  
+  --color-primary: #00f2fe;
+  --color-secondary: #4facfe;
+  --color-accent: #ff0844;
+  --color-pink: #ff4e50;
+  --color-yellow: #f9d423;
+  --color-green: #00e676;
+  
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-full: 9999px;
+
+  --shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+  --shadow-neon: 0 0 25px rgba(0, 242, 254, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Consistent professional icon set (replaces emoji) */
+.icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+.control-btn .icon { width: 20px; height: 20px; }
+.card-icon .icon { width: 26px; height: 26px; }
+.game-icon-badge .icon { width: 28px; height: 28px; }
+.hero-badge .icon { width: 16px; height: 16px; }
+.btn-icon .icon { width: 16px; height: 16px; }
+.exit-game-btn .icon { width: 16px; height: 16px; }
+.tag-remove-btn .icon { width: 10px; height: 10px; }
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: -20%;
+  left: -20%;
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(circle at 50% 30%, rgba(0, 242, 254, 0.08) 0%, rgba(79, 172, 254, 0.05) 35%, rgba(9, 13, 22, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Typography & General Classes */
+h1, h2, h3, h4 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-pink {
+  background: linear-gradient(135deg, #ff0844, #ffb199);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: #040914;
+  box-shadow: var(--shadow-neon);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 35px rgba(0, 242, 254, 0.5);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff0844, #ff4e50);
+  color: white;
+}
+
+.btn-danger:hover {
+  box-shadow: 0 0 25px rgba(255, 8, 68, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-icon {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* Landing Page Layout */
+.landing-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 60px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(0, 242, 254, 0.1);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  color: var(--color-primary);
+  margin-bottom: 24px;
+  font-weight: 500;
+}
+
+.hero-title {
+  font-size: 4rem;
+  line-height: 1.1;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.hero-sub {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  text-align: center;
+  max-width: 650px;
+  margin-bottom: 48px;
+  line-height: 1.6;
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  width: 100%;
+  max-width: 960px;
+  margin-bottom: 60px;
+}
+
+.action-card {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.action-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 242, 254, 0.4);
+}
+
+.card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 242, 254, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  font-size: 1.75rem;
+}
+
+.join-form {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.input-field {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  padding: 12px 20px;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+}
+
+/* Call Stage & Video Grid */
+.call-stage {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.video-grid {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px;
+  background: #060911;
+  position: relative;
+}
+
+.video-grid.single-peer {
+  grid-template-columns: 1fr;
+}
+
+.video-tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #111625;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.video-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  transition: filter 0.3s ease;
+}
+
+.video-tile.remote video {
+  transform: scaleX(1);
+}
+
+/* Real-Time Video Filters */
+.filter-none { filter: none; }
+.filter-warm { filter: sepia(0.3) saturate(1.5) contrast(1.08) brightness(1.05); }
+.filter-cyberpunk { filter: hue-rotate(185deg) saturate(2) contrast(1.25) brightness(1.02); }
+.filter-sepia { filter: sepia(0.75) contrast(1.12) brightness(1.03); }
+.filter-bw { filter: grayscale(1) contrast(1.25) brightness(1.02); }
+.filter-soft { filter: brightness(1.12) contrast(0.92) saturate(1.15) blur(0.3px); }
+.filter-vivid { filter: saturate(1.6) contrast(1.15) brightness(1.05); }
+/* Beauty / skin-smoothing — gentle blur + brightness/contrast lift approximates
+   an Instagram/Snapchat-style smoothening effect without needing a separate
+   image-processing pipeline. */
+.filter-beauty { filter: blur(0.6px) brightness(1.08) contrast(0.94) saturate(1.12); }
+
+.peer-name-tag {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
+  opacity: 0.7;
+  transition: opacity 0.35s ease;
+}
+.peer-name-tag:hover { opacity: 1; }
+
+/* Camera-off / Mic-muted badges — shown on BOTH the local tile and the
+   remote tile whenever that side's camera/mic is off, mirroring how
+   WhatsApp/Instagram show a muted-mic icon on a participant's video tile. */
+.media-status-badges {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 6;
+}
+
+.media-status-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(20, 6, 10, 0.55);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 8, 68, 0.4);
+  color: #ff4e50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-status-badge .icon { width: 16px; height: 16px; }
+
+/* Canvas Game Overlay */
+#gameCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Floating Controls Bar — auto-hides after inactivity so it never sits on
+   top of the game (e.g. Paddle Duel), and reappears on touch/mouse move. */
+.control-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  z-index: 50;
+  opacity: 1;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.control-bar.controls-hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+  pointer-events: none;
+}
+
+.control-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08);
+}
+
+.control-btn.active-off {
+  background: var(--color-accent);
+  border-color: transparent;
+}
+
+/* Hand Detection Indicator Badge */
+.hand-status-badge {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 40;
+  opacity: 0.55;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.hand-status-badge:hover { opacity: 0.95; }
+
+/* Auto-hide after inactivity, same behavior as the bottom control bar, so
+   these badges don't sit on top of the video/game permanently. */
+.hand-status-badge.controls-hidden,
+.network-health-badge.controls-hidden {
+  opacity: 0;
+  transform: translateY(-14px);
+  pointer-events: none;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-green);
+  box-shadow: 0 0 10px var(--color-green);
+}
+
+.hand-status-badge.warning .status-dot {
+  background: var(--color-yellow);
+  box-shadow: 0 0 10px var(--color-yellow);
+}
+
+/* Network Health Indicator Badge */
+.network-health-badge {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  opacity: 0.55;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.network-health-badge:hover { opacity: 0.95; }
+
+/* Consolidated Call Settings Panel (mic/camera/filters/reactions/etc,
+   grouped behind one gear button instead of cluttering the control bar) */
+.settings-panel {
+  position: fixed;
+  bottom: 85px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  z-index: 70;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92vw;
+}
+
+.settings-panel .control-btn {
+  flex-direction: column;
+  height: auto;
+  width: auto;
+  min-width: 54px;
+  padding: 10px 8px 8px;
+  border-radius: var(--radius-md);
+  gap: 4px;
+}
+
+.settings-panel-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+/* Game Scoreboard HUD */
+.scoreboard-hud {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 24px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  z-index: 40;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.score-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.score-val {
+  font-size: 1.4rem;
+  font-family: var(--font-mono);
+}
+
+.game-timer-display {
+  font-size: 1rem;
+  font-family: var(--font-mono);
+  color: var(--color-primary);
+  padding: 4px 12px;
+  background: rgba(0, 242, 254, 0.1);
+  border-radius: 12px;
+}
+
+/* Score pulse — brief highlight so a point change is visibly obvious on
+   both screens instead of the number just silently updating. */
+.score-val.score-pulse {
+  animation: scorePulse 0.65s ease-out;
+}
+
+@keyframes scorePulse {
+  0% { transform: scale(1); color: inherit; text-shadow: none; }
+  30% { transform: scale(1.5); color: #ffd54a; text-shadow: 0 0 14px rgba(255, 213, 74, 0.9); }
+  100% { transform: scale(1); color: inherit; text-shadow: none; }
+}
+
+/* Floating "+1" popup — appended to <body> and positioned via inline
+   left/top (viewport coordinates), so it isn't clipped by the small
+   scoreboard-hud pill it floats up from. */
+.floating-score-popup {
+  position: fixed;
+  transform: translate(-50%, -10px);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #ffd54a;
+  text-shadow: 0 0 10px rgba(255, 213, 74, 0.8);
+  pointer-events: none;
+  z-index: 65;
+  animation: floatScorePopup 0.9s ease-out forwards;
+}
+
+@keyframes floatScorePopup {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
+  20% { opacity: 1; transform: translate(-50%, -14px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+}
+
+.exit-game-btn {
+  position: fixed;
+  top: 76px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 8, 68, 0.2);
+  border: 1px solid rgba(255, 8, 68, 0.4);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  z-index: 45;
+  transition: all 0.2s;
+}
+
+.exit-game-btn:hover {
+  background: var(--color-accent);
+  transform: scale(1.1);
+}
+
+/* Modals & Overlays */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  max-width: 520px;
+  width: 100%;
+  padding: 32px;
+  text-align: center;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-backdrop.active .modal-card {
+  transform: scale(1);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+/* Bottom Sheet Game Launcher */
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(12, 17, 29, 0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--glass-border);
+  border-radius: 28px 28px 0 0;
+  padding: 28px;
+  z-index: 80;
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.game-select-card {
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.game-select-card:hover {
+  background: rgba(0, 242, 254, 0.08);
+  border-color: var(--color-primary);
+  transform: translateY(-3px);
+}
+
+.game-icon-badge {
+  font-size: 2rem;
+}
+
+/* Tagged Input System (YouTube-style Chips) */
+.custom-tags-box {
+  text-align: left;
+  margin-top: 16px;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  min-height: 60px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(0, 242, 254, 0.15);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  color: var(--color-primary);
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.tag-chip.dare-chip {
+  background: rgba(255, 8, 68, 0.15);
+  border-color: rgba(255, 8, 68, 0.3);
+  color: #ff4e50;
+}
+
+.tag-remove-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
+.tag-remove-btn:hover {
+  opacity: 1;
+}
+
+.tag-input {
+  flex: 1;
+  min-width: 150px;
+  background: transparent;
+  border: none;
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.toggle-switch-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  margin-top: 16px;
+  font-size: 0.95rem;
+}
+
+/* Call End Summary Dashboard */
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+  text-align: left;
+}
+
+.summary-card {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+.stat-val {
+  font-size: 1.5rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-top: 4px;
+}
+
+/* Floating Emoji Reactions */
+.floating-emoji {
+  position: fixed;
+  font-size: 2.5rem;
+  pointer-events: none;
+  animation: floatUp 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  z-index: 60;
+  --drift: 0px;
+  --rise: 160px;
+  --scale: 1;
+}
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translate(0, 0) scale(0.7); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--drift), calc(-1 * var(--rise))) scale(var(--scale)); }
+}
+
+@media (max-width: 768px) {
+  .hero-title { font-size: 2.5rem; }
+  .video-grid { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .video-grid.single-peer { grid-template-rows: 1fr; }
+  .actions-grid { grid-template-columns: 1fr; }
+  .scoreboard-hud { width: 92%; justify-content: space-between; gap: 10px; padding: 8px 14px; }
+  .summary-grid { grid-template-columns: 1fr; }
+
+  .control-bar {
+    /* BUGFIX: was width:94% + justify-content:space-between, which stretched
+       the (now only 3) buttons to the far edges of the bar on phones —
+       leaving big gaps between them instead of the tight cluster seen on
+       desktop (where control-bar has no explicit width/space-between).
+       Sizing to content + centering keeps the exact same tight grouping on
+       every screen size. */
+    width: auto;
+    max-width: 94vw;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 14px;
+    bottom: 14px;
+  }
+  .control-btn { width: 40px; height: 40px; }
+  .control-btn .icon { width: 18px; height: 18px; }
+
+  .hand-status-badge { top: 10px; left: 10px; padding: 3px 9px; font-size: 0.62rem; }
+  .network-health-badge { top: 10px; right: 10px; padding: 3px 8px; font-size: 0.6rem; }
+  .exit-game-btn { top: 64px; right: 14px; width: 36px; height: 36px; }
+  #backToMenuBtn { left: 14px; right: auto; }
+
+  .modal-card { padding: 22px; max-width: 94vw; }
+  .bottom-sheet { padding: 20px 16px; }
+  .games-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .game-select-card { padding: 14px; }
+
+  #filterMenu, #reactionBar {
+    max-width: 92vw;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .join-form { flex-direction: column; }
+  .action-card { padding: 22px; }
+}
+
+@media (max-width: 420px) {
+  .hero-title { font-size: 2rem; }
+  .control-bar { gap: 8px; padding: 6px 10px; }
+  .control-btn { width: 36px; height: 36px; }
+  .control-btn .icon { width: 16px; height: 16px; }
+  .score-val { font-size: 1.1rem; }
+  .game-timer-display { font-size: 0.85rem; padding: 3px 8px; }
+  .scoreboard-hud { top: 12px; padding: 6px 10px; gap: 8px; }
+}
+
+/* Global overflow safety net — text in modals, sheets, cards, and HUD
+   elements must always wrap instead of being visually clipped on narrow
+   phone screens. */
+.modal-card, .bottom-sheet, .glass-panel, .scoreboard-hud,
+.modal-card *, .bottom-sheet *, .glass-panel * {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+.modal-card, .bottom-sheet { max-width: 96vw; }
+
+/* BUGFIX (score/timer numbers rendering one digit per line, e.g. "14"
+   shown as "1" stacked above "4"): the global safety net above applies
+   word-break: break-word to EVERY descendant of .glass-panel/.scoreboard-hud
+   so long text in modals/sheets wraps instead of overflowing. But
+   word-break: break-word also lets a flex child (.score-player, .score-val,
+   .game-timer-display) be compressed by flexbox to NARROWER than its own
+   text content's natural width — and once that happens the browser has no
+   choice but to break the number itself onto multiple lines, one character
+   per line. These elements are short, fixed-format numbers/labels that
+   must never wrap, so opt them back out.  */
+.score-player, .score-val, .game-timer-display,
+.game-result-value, .game-result-label,
+.btn {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  flex-shrink: 0;
+}
+
+/* Game Round Result Modal — shown to both players whenever a game ends
+   (timer runs out, or either side ends it early). */
+.game-result-banner {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.game-result-scores {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.game-result-score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+}
+
+.game-result-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.game-result-value {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.game-result-vs {
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.5;
+  padding-top: 20px;
+}
+
+/* Pre-Game Specific Settings Rows */
+.pre-game-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.pre-game-setting-row label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  flex: 1;
+  min-width: 140px;
+}
+
+.pre-game-setting-row select,
+.pre-game-setting-row input {
+  width: 140px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+/* Floating Minimized Truth/Dare Task Ball */
+.minimized-task-pill {
+  position: fixed;
+  bottom: 85px;
+  left: 20px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(18, 24, 38, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  border-radius: var(--radius-full);
+  color: #00f2fe;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 242, 254, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.minimized-task-pill.dare-pill {
+  border-color: rgba(255, 8, 68, 0.4);
+  color: #ff4e50;
+  box-shadow: 0 4px 20px rgba(255, 8, 68, 0.25);
+}
+
+.minimized-task-pill:hover {
+  transform: scale(1.05);
+}
+
