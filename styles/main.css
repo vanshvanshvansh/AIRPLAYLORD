@@ -1010,6 +1010,113 @@ h1, h2, h3, h4 {
   font-size: 0.85rem;
 }
 
+/* Polished Hand Sensitivity Lever Component */
+.sensitivity-lever-card {
+  margin-top: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sensitivity-lever-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.sensitivity-lever-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sensitivity-val-badge {
+  padding: 4px 12px;
+  background: rgba(0, 242, 254, 0.15);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  color: var(--color-primary);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.sensitivity-slider-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.sensitivity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100% !important;
+  height: 8px !important;
+  border-radius: 4px !important;
+  background: linear-gradient(90deg, #ff0844 0%, #00f2fe 50%, #00e676 100%) !important;
+  outline: none;
+  cursor: pointer;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+  padding: 0 !important;
+  border: none !important;
+}
+
+.sensitivity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2.5px solid #00f2fe;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.8);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sensitivity-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 18px rgba(0, 242, 254, 1);
+}
+
+.sensitivity-presets {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sensitivity-preset-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.sensitivity-preset-btn:hover, .sensitivity-preset-btn.active {
+  background: rgba(0, 242, 254, 0.18);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+}
+
 /* Floating Minimized Truth/Dare Task Ball */
 .minimized-task-pill {
   position: fixed;
