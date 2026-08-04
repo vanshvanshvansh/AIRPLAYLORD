@@ -154,14 +154,37 @@ class GameOverlayManager {
     });
   }
 
+  // Spawns a burst of several copies of the emoji (varying horizontal
+  // position, launch delay, drift, size, and duration) instead of a single
+  // animation, for a stronger livestream-style reaction-burst feel.
   triggerFloatingEmoji(emojiSymbol) {
+    const BURST_COUNT = 6;
+    for (let i = 0; i < BURST_COUNT; i++) {
+      const delay = i * (70 + Math.random() * 90); // staggered launch
+      setTimeout(() => this.spawnFloatingEmojiParticle(emojiSymbol), delay);
+    }
+  }
+
+  spawnFloatingEmojiParticle(emojiSymbol) {
     const el = document.createElement('div');
     el.className = 'floating-emoji';
     el.textContent = emojiSymbol;
-    el.style.left = `${30 + Math.random() * 40}%`;
-    el.style.bottom = '100px';
+
+    const leftPct = 25 + Math.random() * 50; // randomized horizontal position
+    const drift = (Math.random() * 60 - 30).toFixed(0); // px, left/right sway
+    const rise = (140 + Math.random() * 100).toFixed(0); // px, how high it floats
+    const duration = (1.6 + Math.random() * 1.1).toFixed(2); // s
+    const scale = (0.85 + Math.random() * 0.5).toFixed(2);
+
+    el.style.left = `${leftPct}%`;
+    el.style.bottom = '90px';
+    el.style.setProperty('--drift', `${drift}px`);
+    el.style.setProperty('--rise', `${rise}px`);
+    el.style.setProperty('--scale', scale);
+    el.style.animationDuration = `${duration}s`;
+
     document.body.appendChild(el);
-    setTimeout(() => { el.remove(); }, 2000);
+    setTimeout(() => { el.remove(); }, duration * 1000);
   }
 
   startSyncedGame(gameId, timerSetting = 45) {
