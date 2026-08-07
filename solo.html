@@ -266,6 +266,9 @@
       handTracker.startCamera(videoEl);
 
       function animationFrameLoop() {
+        // Hand-tracking dot/skeleton only shows while a game is actually
+        // being played — hidden during normal preview/idle state.
+        handTracker.setVisible(!!(overlayManager && overlayManager.activeGame));
         handTracker.advanceDisplayPosition();
         overlayManager.render(handTracker.filteredFingertip, null);
         requestAnimationFrame(animationFrameLoop);
