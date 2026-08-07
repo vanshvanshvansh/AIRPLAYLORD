@@ -494,19 +494,41 @@
       // leaving an awkward frozen face on screen. Unblurs itself the
       // moment real frames start flowing again — no manual handling needed
       // anywhere else in the call flow.
-      function watchVideoFreeze(videoEl, overlayEl, freezeMs = 1100) {
-        if (!videoEl || !overlayEl) return;
-        // Same exact method for BOTH tiles (local and remote) so freezing
-        // is detected equally on either side — no relying on browser-
-        // specific APIs (some support requestVideoFrameCallback, some
-        // don't, which is why detection used to work on one video but not
-        // the other). Instead, sample the actual rendered pixels of the
-        // video into a tiny offscreen canvas and compare byte-for-byte
-        // against the previous sample. A real, live camera/network video
-        // is never bit-identical two samples in a row (sensor noise alone
-        // guarantees that) — so an unchanged sample for freezeMs means the
-        // video is genuinely stuck on one frame, on any browser, on any
-        // device, for either the local or the remote tile.
+      //
+      // Two independent signals feed each tile's blur, combined with OR
+      // so they can never fight each other and cause flicker:
+      //  - "pixel" — this specific tile's video is visibly stuck (checked
+      //    by sampling actual rendered pixels, works for either tile on
+      //    any browser, no reliance on browser-specific video APIs).
+      //  - "myNetworkBad" — THIS device's own outbound connection to the
+      //    peer has stalled (checked via WebRTC send stats). When that's
+      //    true, BOTH tiles blur on THIS device only (a full "my own
+      //    connection is having trouble" indicator) — the peer on the
+      //    other end only ever sees the one tile that's actually stuck
+      //    for them (their view of us), never their own camera blurred.
+      const freezeState = {
+        local: { pixel: false, myNetworkBad: false },
+        remote: { pixel: false, myNetworkBad: false }
+      };
+      const freezeOverlays = {
+        local: document.getElementById('localFreezeOverlay'),
+        remote: document.getElementById('remoteFreezeOverlay')
+      };
+      function updateFreezeOverlay(tile) {
+        const el = freezeOverlays[tile];
+        if (!el) return;
+        const active = freezeState[tile].pixel || freezeState[tile].myNetworkBad;
+        el.classList.toggle('active', active);
+      }
+
+      function watchVideoFreeze(videoEl, tile, freezeMs = 1100) {
+        if (!videoEl) return;
+        // Sample the actual rendered pixels of the video into a tiny
+        // offscreen canvas and compare byte-for-byte against the previous
+        // sample. A real, live camera/network video is never bit-identical
+        // two samples in a row (sensor noise alone guarantees that) — so
+        // an unchanged sample for freezeMs means the video is genuinely
+        // stuck on one frame.
         const SAMPLE_SIZE = 12;
         const canvas = document.createElement('canvas');
         canvas.width = SAMPLE_SIZE;
@@ -514,12 +536,6 @@
         const ctx2d = canvas.getContext('2d', { willReadFrequently: true });
         let lastData = null;
         let lastChangeAt = performance.now();
-        let frozen = false;
-        const setFrozen = (v) => {
-          if (v === frozen) return;
-          frozen = v;
-          overlayEl.classList.toggle('active', v);
-        };
         setInterval(() => {
           if (!videoEl.srcObject || videoEl.readyState < 2 || !videoEl.videoWidth) return;
           let data;
@@ -536,16 +552,58 @@
             }
           }
           lastData = data;
+          const now = performance.now();
           if (changed) {
-            lastChangeAt = performance.now();
-            setFrozen(false);
-          } else if (performance.now() - lastChangeAt > freezeMs) {
-            setFrozen(true);
+            lastChangeAt = now;
+            if (freezeState[tile].pixel) { freezeState[tile].pixel = false; updateFreezeOverlay(tile); }
+          } else if (!freezeState[tile].pixel && now - lastChangeAt > freezeMs) {
+            freezeState[tile].pixel = true;
+            updateFreezeOverlay(tile);
           }
         }, 300);
       }
-      watchVideoFreeze(localVideoEl, document.getElementById('localFreezeOverlay'));
-      watchVideoFreeze(remoteVideoEl, document.getElementById('remoteFreezeOverlay'));
+      watchVideoFreeze(localVideoEl, 'local');
+      watchVideoFreeze(remoteVideoEl, 'remote');
+
+      // Watches THIS device's own outbound send stats. If bytes stop being
+      // sent while a live connection exists, this device's own upload has
+      // stalled — a "my connection is having trouble" state that blurs
+      // both tiles here, without affecting how the peer's screen looks.
+      function watchOwnUploadHealth(getPeerConnection, freezeMs = 1300) {
+        let lastBytes = null;
+        let lastChangeAt = performance.now();
+        setInterval(async () => {
+          const pc = getPeerConnection();
+          if (!pc || (pc.connectionState !== 'connected' && pc.connectionState !== 'connecting')) return;
+          let bytes = 0;
+          try {
+            const stats = await pc.getStats(null);
+            stats.forEach((report) => {
+              if (report.type === 'outbound-rtp' && typeof report.bytesSent === 'number') {
+                bytes += report.bytesSent;
+              }
+            });
+          } catch (e) {
+            return;
+          }
+          const now = performance.now();
+          if (lastBytes === null || bytes !== lastBytes) {
+            lastBytes = bytes;
+            lastChangeAt = now;
+            if (freezeState.local.myNetworkBad || freezeState.remote.myNetworkBad) {
+              freezeState.local.myNetworkBad = false;
+              freezeState.remote.myNetworkBad = false;
+              updateFreezeOverlay('local');
+              updateFreezeOverlay('remote');
+            }
+          } else if (!freezeState.local.myNetworkBad && now - lastChangeAt > freezeMs) {
+            freezeState.local.myNetworkBad = true;
+            freezeState.remote.myNetworkBad = true;
+            updateFreezeOverlay('local');
+            updateFreezeOverlay('remote');
+          }
+        }, 400);
+      }
 
       const syncEngine = new SyncEngine(roomId, isHost, userName);
 
@@ -555,8 +613,6 @@
         onConnectionStateChange: (state, err) => {
           const warningBanner = document.getElementById('connectionWarningBanner');
           const warningText = document.getElementById('connectionWarningText');
-          const remoteFreezeOverlay = document.getElementById('remoteFreezeOverlay');
-          const localFreezeOverlay = document.getElementById('localFreezeOverlay');
 
           if (state === 'MEDIA_DENIED') {
             alert("Camera and microphone permissions are required to use AirPlay.");
@@ -567,12 +623,6 @@
           } else if (state === 'reconnecting' || state === 'disconnected') {
             warningBanner.style.display = 'block';
             warningText.textContent = "Reconnecting call...";
-            // Blur BOTH tiles immediately on the connection signal instead
-            // of waiting for the frame-freeze detector to notice — a
-            // reconnect affects the whole call, so both sides should see
-            // the same blurred state, not just one of the two videos.
-            if (remoteFreezeOverlay) remoteFreezeOverlay.classList.add('active');
-            if (localFreezeOverlay) localFreezeOverlay.classList.add('active');
           } else if (state === 'ICE_FAILED_TIMEOUT') {
             warningBanner.style.display = 'block';
             warningText.textContent = "Couldn't connect directly — try switching networks";
@@ -585,6 +635,8 @@
           syncEngine.setDataChannel(channel);
         }
       });
+
+      watchOwnUploadHealth(() => webrtc.peerConnection);
 
       await webrtc.initializeLocalMedia();
 
