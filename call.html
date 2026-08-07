@@ -56,6 +56,7 @@
     <div class="video-grid" id="videoGrid">
       <div class="video-tile">
         <video id="localVideo" class="filter-none" autoplay playsinline muted></video>
+        <div id="localFreezeOverlay" class="video-blur-overlay"></div>
         <div id="localCameraHint" class="video-center-hint">If you can't see yourself here, please refresh this page once — wait until you can see yourself.</div>
         <div class="peer-name-tag">
           <span class="status-dot"></span>
@@ -68,6 +69,7 @@
       </div>
       <div class="video-tile remote">
         <video id="remoteVideo" class="filter-none" autoplay playsinline></video>
+        <div id="remoteFreezeOverlay" class="video-blur-overlay"></div>
         <div id="remoteWaitingHint" class="video-center-hint">Waiting for peer...</div>
         <div class="peer-name-tag">
           <span class="status-dot" style="background: #00f2fe; box-shadow: 0 0 10px #00f2fe;"></span>
@@ -487,6 +489,48 @@
         remoteVideoEl.addEventListener('playing', () => { remoteWaitingHint.style.display = 'none'; });
       }
 
+      // Auto-blur a video the instant it gets visually stuck on one frame
+      // (network jitter, dropped packets, reconnect, anything) instead of
+      // leaving an awkward frozen face on screen. Unblurs itself the
+      // moment real frames start flowing again — no manual handling needed
+      // anywhere else in the call flow.
+      function watchVideoFreeze(videoEl, overlayEl, freezeMs = 1100) {
+        if (!videoEl || !overlayEl) return;
+        let lastFrameAt = performance.now();
+        let frozen = false;
+        const setFrozen = (v) => {
+          if (v === frozen) return;
+          frozen = v;
+          overlayEl.classList.toggle('active', v);
+        };
+        if (typeof videoEl.requestVideoFrameCallback === 'function') {
+          const onFrame = () => {
+            lastFrameAt = performance.now();
+            setFrozen(false);
+            videoEl.requestVideoFrameCallback(onFrame);
+          };
+          videoEl.requestVideoFrameCallback(onFrame);
+        } else {
+          // Fallback for browsers without requestVideoFrameCallback: poll
+          // currentTime, which stops advancing when the video is stalled.
+          let lastTime = -1;
+          setInterval(() => {
+            if (videoEl.readyState >= 2 && !videoEl.paused && videoEl.currentTime !== lastTime) {
+              lastTime = videoEl.currentTime;
+              lastFrameAt = performance.now();
+              setFrozen(false);
+            }
+          }, 350);
+        }
+        setInterval(() => {
+          if (videoEl.srcObject && performance.now() - lastFrameAt > freezeMs) {
+            setFrozen(true);
+          }
+        }, 350);
+      }
+      watchVideoFreeze(localVideoEl, document.getElementById('localFreezeOverlay'));
+      watchVideoFreeze(remoteVideoEl, document.getElementById('remoteFreezeOverlay'));
+
       const syncEngine = new SyncEngine(roomId, isHost, userName);
 
       const webrtc = new WebRTCManager({
@@ -495,6 +539,7 @@
         onConnectionStateChange: (state, err) => {
           const warningBanner = document.getElementById('connectionWarningBanner');
           const warningText = document.getElementById('connectionWarningText');
+          const remoteFreezeOverlay = document.getElementById('remoteFreezeOverlay');
 
           if (state === 'MEDIA_DENIED') {
             alert("Camera and microphone permissions are required to use AirPlay.");
@@ -505,6 +550,10 @@
           } else if (state === 'reconnecting' || state === 'disconnected') {
             warningBanner.style.display = 'block';
             warningText.textContent = "Reconnecting call...";
+            // Blur immediately on the connection signal instead of waiting
+            // for the frame-freeze detector to notice — avoids showing
+            // whatever awkward frame the video happened to stall on.
+            if (remoteFreezeOverlay) remoteFreezeOverlay.classList.add('active');
           } else if (state === 'ICE_FAILED_TIMEOUT') {
             warningBanner.style.display = 'block';
             warningText.textContent = "Couldn't connect directly — try switching networks";
