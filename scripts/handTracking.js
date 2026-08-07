@@ -18,10 +18,18 @@ class HandTracker {
     this.freezeTimeout = 500;
     this.fadeDuration = 200;
 
-    this.filteredFingertip = null; // what games actually read every frame (smoothed/interpolated)
+    this.filteredFingertip = null; // what games actually read every frame (jitter-filtered, zero added lag)
     this.targetFingertip = null;   // latest raw sample straight from MediaPipe
     this.detectedGesture = 'NONE';
     this.noHandTimeoutTimer = null;
+
+    // Skeleton/fingertip dot is only drawn on-canvas while a game is
+    // active. During a normal call it stays hidden. Toggle via setVisible().
+    this.visible = false;
+  }
+
+  setVisible(visible) {
+    this.visible = !!visible;
   }
 
   async init() {
@@ -88,22 +96,16 @@ class HandTracker {
   }
 
   // Call this once per requestAnimationFrame, BEFORE reading
-  // `this.filteredFingertip`. Glides the on-screen position toward the
-  // latest raw MediaPipe sample so motion looks like a full 60fps even
-  // though real samples only arrive ~15-25 times a second on phones.
+  // `this.filteredFingertip`. Kept as a hook for the render loop, but the
+  // position is no longer artificially glided toward the target — that
+  // used to add real, felt latency between where the fingertip actually
+  // was and where clicks/paddles registered. Now `filteredFingertip`
+  // always equals the latest real sample (already jitter-filtered by
+  // OneEuroFilter in processResults), so whatever is drawn on screen is
+  // exactly what gets used for touch/click detection — zero extra delay.
   advanceDisplayPosition() {
-    if (!this.targetFingertip) return;
-    if (!this.filteredFingertip) {
-      this.filteredFingertip = { ...this.targetFingertip };
-      return;
-    }
-    const alpha = 0.4; // convergence speed — high enough to feel responsive, low enough to hide sample gaps
-    this.filteredFingertip = {
-      x: this.filteredFingertip.x + (this.targetFingertip.x - this.filteredFingertip.x) * alpha,
-      y: this.filteredFingertip.y + (this.targetFingertip.y - this.filteredFingertip.y) * alpha,
-      px: this.filteredFingertip.px + (this.targetFingertip.px - this.filteredFingertip.px) * alpha,
-      py: this.filteredFingertip.py + (this.targetFingertip.py - this.filteredFingertip.py) * alpha
-    };
+    // No-op by design: filteredFingertip is set directly in processResults()
+    // the instant a new sample arrives, so there is nothing to glide.
   }
 
   processResults(results) {
@@ -125,29 +127,20 @@ class HandTracker {
       // Perform Aspect Ratio Offset Calibration
       const calibratedCoords = getAspectCorrectedCoords(smoothedNorm, this.videoElement, this.canvasElement);
 
-      // BUGFIX (the "5fps" complaint): this used to be written directly to
-      // `filteredFingertip`, which every game reads every animation frame
-      // (~60fps). But MediaPipe only actually delivers a new hand position
-      // ~10-20 times a second on a real phone (inference is slow), so the
-      // cursor/paddle/ball sat frozen for 3-6 render frames at a time, then
-      // teleported to the next sample — visually indistinguishable from the
-      // whole game running at 5-10fps, even though the canvas itself was
-      // redrawing at a full 60fps the entire time.
-      // Fix: store the raw sample as a TARGET, and smoothly glide
-      // `filteredFingertip` toward it once per animation frame (see
-      // advanceDisplayPosition(), called from the render loop). That turns
-      // the sparse ~15fps samples into fluid ~60fps on-screen motion.
+      // Written straight to both `targetFingertip` and `filteredFingertip`
+      // the instant a new MediaPipe sample arrives — no artificial glide
+      // toward it. Between real samples the position simply holds, so
+      // whatever is on screen (the red fingertip dot) is always exactly
+      // where a touch/click gets registered. This trades a little visual
+      // smoothness on very sparse samples for correctness and minimum
+      // possible latency, which is what click accuracy needs.
       this.targetFingertip = {
         x: calibratedCoords.normX,
         y: calibratedCoords.normY,
         px: calibratedCoords.x,
         py: calibratedCoords.y
       };
-      if (!this.filteredFingertip) {
-        // First acquisition (or just re-acquired after losing the hand):
-        // snap immediately instead of gliding in from wherever it last was.
-        this.filteredFingertip = { ...this.targetFingertip };
-      }
+      this.filteredFingertip = this.targetFingertip;
 
       this.detectedGesture = this.classifyGesture(this.lastLandmarks);
 
@@ -196,6 +189,9 @@ class HandTracker {
   }
 
   drawSkeleton() {
+    // Only paint the hand skeleton/fingertip dot while a game is actually
+    // active (see setVisible()) — during a normal call this stays hidden.
+    if (!this.visible) return;
     if (!this.canvasElement || !this.lastLandmarks || this.confidence <= 0) return;
 
     const ctx = this.canvasElement.getContext('2d');
@@ -224,22 +220,32 @@ class HandTracker {
     });
     ctx.stroke();
 
-    // Draw Joint Nodes
+    // Draw Joint Nodes (landmark 8 / index fingertip is skipped here and
+    // drawn separately below, exactly at the same coordinates used for
+    // touch/click detection, so the red dot IS the touch point — no
+    // separate pin/cursor that could drift out of sync with it).
     this.lastLandmarks.forEach((lm, idx) => {
+      if (idx === 8) return;
       const pt = getAspectCorrectedCoords({ x: 1 - lm.x, y: lm.y }, this.videoElement, this.canvasElement);
-      const isFingertip = [4, 8, 12, 16, 20].includes(idx);
+      const isFingertip = [4, 12, 16, 20].includes(idx);
 
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, isFingertip ? 6 : 4, 0, 2 * Math.PI);
-      ctx.fillStyle = idx === 8 ? '#ff0844' : (isFingertip ? '#00f2fe' : '#ffffff');
-      ctx.shadowColor = idx === 8 ? '#ff0844' : '#00f2fe';
-      ctx.shadowBlur = idx === 8 ? 15 : 8;
+      ctx.fillStyle = isFingertip ? '#00f2fe' : '#ffffff';
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = isFingertip ? 15 : 8;
       ctx.fill();
     });
 
-    // Render Needle Cursor at Calibrated Fingertip (landmark 8)
+    // Red touch-point dot: drawn at this.filteredFingertip, the exact same
+    // coordinate every game reads for click/touch detection.
     if (this.filteredFingertip) {
-      drawNeedleCursor(ctx, this.filteredFingertip.px, this.filteredFingertip.py, '#00f2fe');
+      ctx.beginPath();
+      ctx.arc(this.filteredFingertip.px, this.filteredFingertip.py, 8, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ff0844';
+      ctx.shadowColor = '#ff0844';
+      ctx.shadowBlur = 15;
+      ctx.fill();
     }
 
     ctx.restore();
