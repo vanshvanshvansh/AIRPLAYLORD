@@ -610,6 +610,14 @@
 
       const syncEngine = new SyncEngine(roomId, isHost, userName);
 
+      // BUGFIX (host-refresh reconnection): only ever act on a
+      // signaling/offer that was created AFTER this page load. Without
+      // this, the guest's offer listener (attached below) fires
+      // immediately with whatever offer is already sitting in the
+      // database — which, right after a refresh, is a stale leftover from
+      // the PREVIOUS session, not a real new offer.
+      const pageLoadEpoch = syncEngine.getServerTime();
+
       const webrtc = new WebRTCManager({
         localVideoElement: document.getElementById('localVideo'),
         remoteVideoElement: document.getElementById('remoteVideo'),
@@ -643,14 +651,37 @@
 
       await webrtc.initializeLocalMedia();
 
+      // BUGFIX (host-refresh reconnection): wraps host-side offer creation
+      // so it can be triggered either by a fresh Accept click OR by
+      // discovering, on page load, that the guest was already accepted in
+      // an earlier session (see ConsentManager's onHostReconnect). Clears
+      // any leftover offer/answer/ICE candidates from a previous
+      // connection attempt first, so neither side can ever act on stale
+      // signaling data, then stamps the new offer with an epoch so the
+      // guest can reliably tell it apart from an old one.
+      async function initiateHostOffer() {
+        syncEngine.write('signaling', null);
+        const offer = await webrtc.createOffer();
+        syncEngine.write('signaling/offer', { sdp: offer.sdp, type: offer.type, epoch: syncEngine.getServerTime() });
+      }
+
+      let guestOfferListenerAttached = false;
+
       const consentManager = new ConsentManager(syncEngine, {
         onJoinAccepted: async () => {
           if (isHost) {
-            const offer = await webrtc.createOffer();
-            syncEngine.write('signaling/offer', { sdp: offer.sdp, type: offer.type });
-          } else {
+            await initiateHostOffer();
+          } else if (!guestOfferListenerAttached) {
+            // Guarded to attach only once: in the reconnect flow above,
+            // onJoinAccepted can legitimately fire twice in a row (once
+            // for the stale 'accepted' status already sitting in the
+            // database at page load, once more for the real fresh accept
+            // that follows) — without this guard that would register two
+            // overlapping listeners on the same path and process the
+            // eventual real offer twice.
+            guestOfferListenerAttached = true;
             syncEngine.listen('signaling/offer', async (offer) => {
-              if (offer && !webrtc.peerConnection) {
+              if (offer && offer.epoch && offer.epoch >= pageLoadEpoch) {
                 const answer = await webrtc.handleOffer(offer);
                 syncEngine.write('signaling/answer', { sdp: answer.sdp, type: answer.type });
               }
@@ -662,6 +693,13 @@
             alert("The host declined your join request.");
             window.location.href = 'index.html';
           }
+        },
+        onHostReconnect: async () => {
+          // The host reloaded the page and found the guest was already
+          // accepted in an earlier session — re-initiate the WebRTC offer
+          // right away instead of waiting for an Accept click that will
+          // never come (there's no new pending request to accept).
+          await initiateHostOffer();
         },
         onGameInviteReceived: (gameId, accepted, timerDuration) => {
           if (accepted) {
