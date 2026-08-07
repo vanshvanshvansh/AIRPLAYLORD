@@ -556,7 +556,26 @@ class TruthGame {
   renderPromptCard(ctx, cx, cy, localFingertip, now) {
     ctx.save();
     const boxWidth = Math.min(500, ctx.canvas.width - 32);
-    const boxHeight = 220;
+
+    // Measure how many lines the question text will actually wrap to,
+    // so the card height matches the question length instead of always
+    // reserving a big fixed block (which left short questions floating
+    // in a mostly-empty card).
+    const questionFont = `500 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
+    ctx.font = questionFont;
+    const lineHeight = scaleFont(ctx.canvas, 19);
+    const textMaxWidth = boxWidth - 40;
+    const numLines = measureWrappedLineCount(ctx, this.currentPrompt || '', textMaxWidth);
+    const textBlockHeight = numLines * lineHeight;
+
+    const HEADER_SPACE = 56;   // title + top padding
+    const BUTTON_SPACE = 76;   // hold-button + bottom padding
+    const MIN_BOX_HEIGHT = 150;
+    const MAX_BOX_HEIGHT = 320;
+    const boxHeight = Math.max(
+      MIN_BOX_HEIGHT,
+      Math.min(MAX_BOX_HEIGHT, HEADER_SPACE + textBlockHeight + BUTTON_SPACE)
+    );
     const topY = cy - boxHeight / 2;
 
     // Translucent Glassy Card Fill
@@ -601,10 +620,15 @@ class TruthGame {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Question / Task Prompt Text
-    ctx.font = `500 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
+    // Question / Task Prompt Text — vertically centered in the space
+    // between the title and the hold-button, whatever that space ends
+    // up being for this card's (dynamic) height.
+    ctx.font = questionFont;
     ctx.fillStyle = '#ffffff';
-    wrapCanvasText(ctx, this.currentPrompt || '', cx, topY + 74, boxWidth - 40, scaleFont(ctx.canvas, 19));
+    const titleBottom = topY + HEADER_SPACE;
+    const buttonAreaTop = topY + boxHeight - BUTTON_SPACE;
+    const textCenterY = titleBottom + (buttonAreaTop - titleBottom) / 2;
+    wrapCanvasText(ctx, this.currentPrompt || '', cx, textCenterY, textMaxWidth, lineHeight);
 
     // Mandatory 5-Second Hold Action Button: "Spin Again 🔄"
     const btnW = 240;
