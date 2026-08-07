@@ -391,8 +391,31 @@ function wrapCanvasText(ctx, text, cx, cy, maxWidth, lineHeight) {
   return lines.length;
 }
 
+/**
+ * Same word-wrap logic as wrapCanvasText, but only counts how many lines
+ * the text would take instead of drawing — used to size a box to its
+ * text before the box itself is drawn.
+ */
+function measureWrappedLineCount(ctx, text, maxWidth) {
+  const words = String(text).split(' ');
+  const lines = [];
+  let line = '';
+  for (let i = 0; i < words.length; i++) {
+    const testLine = line + words[i] + ' ';
+    if (ctx.measureText(testLine).width > maxWidth && i > 0) {
+      lines.push(line.trim());
+      line = words[i] + ' ';
+    } else {
+      line = testLine;
+    }
+  }
+  lines.push(line.trim());
+  return lines.length;
+}
+
 window.scaleFont = scaleFont;
 window.wrapCanvasText = wrapCanvasText;
+window.measureWrappedLineCount = measureWrappedLineCount;
 window.getAspectCorrectedCoords = getAspectCorrectedCoords;
 window.drawNeedleCursor = drawNeedleCursor;
 window.generateRoomId = generateRoomId;
