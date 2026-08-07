@@ -1158,6 +1158,16 @@
         };
       }
 
+      // Splits a whole blob of pasted text into individual tags — handles
+      // commas AND newlines (a list pasted one-question-per-line), so
+      // dropping in a big list behaves like YouTube's tag box and turns
+      // every line/comma-separated piece into its own tag automatically,
+      // instead of only peeling off the first one.
+      function addBulkText(text, isTruth) {
+        const pieces = text.split(/[,\n\r]+/);
+        pieces.forEach(piece => addTag(piece, isTruth));
+      }
+
       // Pressing Enter OR typing a comma both turn the current text into a
       // tag — matching how tag inputs normally behave, instead of forcing
       // Enter only. Since this is a keydown handler, the comma key is
@@ -1173,18 +1183,45 @@
         if (e.key === 'Enter') { e.preventDefault(); addTag(dareInput.value, false); }
       };
 
+      // Pasting a whole list at once (e.g. copied from Notes, one question
+      // per line, optionally comma-separated) is caught here BEFORE the
+      // browser inserts it into the single-line input — so every line
+      // becomes its own tag immediately, instead of getting flattened into
+      // one long line that only the first comma could peel a tag off of.
+      truthInput.addEventListener('paste', (e) => {
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        if (text && /[,\n\r]/.test(text)) {
+          e.preventDefault();
+          addBulkText(text, true);
+        }
+      });
+      dareInput.addEventListener('paste', (e) => {
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        if (text && /[,\n\r]/.test(text)) {
+          e.preventDefault();
+          addBulkText(text, false);
+        }
+      });
+
+      // Fallback for normal typing (and for pastes the browser hands to
+      // 'input' instead of firing a native 'paste' event, e.g. some mobile
+      // keyboards): keep peeling tags off on every comma OR newline found,
+      // looping so more than one piece typed/inserted at once is never
+      // left stuck in the field.
       truthInput.addEventListener('input', () => {
-        if (truthInput.value.includes(',')) {
-          const [before, ...rest] = truthInput.value.split(',');
+        while (/[,\n\r]/.test(truthInput.value)) {
+          const parts = truthInput.value.split(/[,\n\r]/);
+          const before = parts.shift();
           addTag(before, true);
-          truthInput.value = rest.join(',');
+          truthInput.value = parts.join(',');
         }
       });
       dareInput.addEventListener('input', () => {
-        if (dareInput.value.includes(',')) {
-          const [before, ...rest] = dareInput.value.split(',');
+        while (/[,\n\r]/.test(dareInput.value)) {
+          const parts = dareInput.value.split(/[,\n\r]/);
+          const before = parts.shift();
           addTag(before, false);
-          dareInput.value = rest.join(',');
+          dareInput.value = parts.join(',');
         }
       });
 
