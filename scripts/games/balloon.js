@@ -237,10 +237,6 @@ class BalloonGame {
       }
     }
 
-    // Render Needle Pin Cursor at local fingertip
-    if (localFingertip) {
-      drawNeedleCursor(ctx, localFingertip.px, localFingertip.py, this.sync && this.sync.peerRole === 'peerB' ? '#00f2fe' : '#ff0844');
-    }
   }
 
   checkHoverPop(fingertip, myRole, width, height, now) {
