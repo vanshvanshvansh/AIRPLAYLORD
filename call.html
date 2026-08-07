@@ -226,7 +226,7 @@
         <button id="closeTruthModalBtn" class="btn btn-secondary btn-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <p style="color: var(--text-muted); margin-top: 6px; font-size: 0.9rem;">
-        Type questions separated by commas (e.g., Question 1, Question 2). Press comma or Enter to create YouTube-style tags!
+        Type a question, then press Enter to add it. Add as many as you like — you can add 100+ truths and dares.
       </p>
 
       <!-- Truth Section -->
@@ -248,14 +248,17 @@
       </div>
 
       <!-- Custom Only Toggle Switch -->
-      <label class="toggle-switch-label">
+      <label class="toggle-switch-label" id="customOnlyToggleLabel">
         <input type="checkbox" id="customOnlyToggle">
         <span>Use Custom Questions Only (Ignore default questions)</span>
       </label>
+      <span class="toggle-hint" id="customOnlyHint"></span>
 
-      <div class="modal-actions" style="margin-top: 20px;">
-        <button id="saveTruthTagsBtn" class="btn btn-primary" style="width: 100%;">Save Questions</button>
+      <div class="modal-actions" style="margin-top: 20px; gap: 10px;">
+        <button id="clearAllTagsBtn" class="clear-all-btn">Clear All</button>
+        <button id="saveTruthTagsBtn" class="btn btn-primary" style="flex: 1;">Save Questions</button>
       </div>
+      <span class="save-status-text" id="saveStatusText"></span>
     </div>
   </div>
 
@@ -901,9 +904,12 @@
       const openBtn = document.getElementById('customTruthBtn');
       const closeBtn = document.getElementById('closeTruthModalBtn');
       const saveBtn = document.getElementById('saveTruthTagsBtn');
-
-      openBtn.onclick = () => modal.classList.add('active');
-      closeBtn.onclick = () => modal.classList.remove('active');
+      const clearAllBtn = document.getElementById('clearAllTagsBtn');
+      const customOnlyToggle = document.getElementById('customOnlyToggle');
+      const customOnlyLabel = document.getElementById('customOnlyToggleLabel');
+      const customOnlyHint = document.getElementById('customOnlyHint');
+      const saveStatusEl = document.getElementById('saveStatusText');
+      const MIN_QUESTIONS_FOR_CUSTOM_ONLY = 5;
 
       const truthInput = document.getElementById('truthTagInput');
       const truthContainer = document.getElementById('truthTagsContainer');
@@ -917,26 +923,40 @@
       const addDareBtn = document.getElementById('addDareTagBtn');
       let dareTags = [];
 
+      let saveStatusTimer = null;
+
+      // Keeps the "ignore default questions" toggle honest: it can only be
+      // turned on once there are enough custom questions to actually stand
+      // in for the default list, and it auto-disables (and unchecks itself)
+      // the moment the pool drops back below that.
+      function updateCustomOnlyAvailability() {
+        const total = truthTags.length + dareTags.length;
+        const enabled = total >= MIN_QUESTIONS_FOR_CUSTOM_ONLY;
+        customOnlyToggle.disabled = !enabled;
+        customOnlyLabel.classList.toggle('disabled', !enabled);
+        if (!enabled) {
+          customOnlyToggle.checked = false;
+          customOnlyHint.textContent = `Add at least ${MIN_QUESTIONS_FOR_CUSTOM_ONLY} questions total to enable this (${total}/${MIN_QUESTIONS_FOR_CUSTOM_ONLY})`;
+        } else {
+          customOnlyHint.textContent = '';
+        }
+      }
+
       function addTag(text, isTruth) {
-        const parts = text.split(',');
-        parts.forEach(p => {
-          const trimmed = p.trim();
-          if (!trimmed) return;
-          if (isTruth) {
-            if (!truthTags.includes(trimmed)) truthTags.push(trimmed);
-          } else {
-            if (!dareTags.includes(trimmed)) dareTags.push(trimmed);
-          }
-        });
+        const trimmed = text.trim();
+        if (!trimmed) return;
         if (isTruth) {
+          if (!truthTags.includes(trimmed)) truthTags.push(trimmed);
           renderTags(truthContainer, truthTags, true);
           truthCountEl.textContent = truthTags.length;
           truthInput.value = '';
         } else {
+          if (!dareTags.includes(trimmed)) dareTags.push(trimmed);
           renderTags(dareContainer, dareTags, false);
           dareCountEl.textContent = dareTags.length;
           dareInput.value = '';
         }
+        updateCustomOnlyAvailability();
       }
 
       function renderTags(container, tagsList, isTruth) {
@@ -951,10 +971,33 @@
             renderTags(container, tagsList, isTruth);
             if (isTruth) truthCountEl.textContent = tagsList.length;
             else dareCountEl.textContent = tagsList.length;
+            updateCustomOnlyAvailability();
           };
           container.insertBefore(chip, inputEl);
         });
       }
+
+      // Loads whatever the game currently considers the authoritative list
+      // (which may include questions the other player added) into this
+      // panel, so editing always starts from the real shared state instead
+      // of a stale local copy.
+      function loadFromGameState() {
+        truthTags = truthGameInstance ? [...truthGameInstance.customTruthTags] : [];
+        dareTags = truthGameInstance ? [...truthGameInstance.customDareTags] : [];
+        renderTags(truthContainer, truthTags, true);
+        renderTags(dareContainer, dareTags, false);
+        truthCountEl.textContent = truthTags.length;
+        dareCountEl.textContent = dareTags.length;
+        customOnlyToggle.checked = !!(truthGameInstance && truthGameInstance.useCustomOnly);
+        updateCustomOnlyAvailability();
+        if (saveStatusEl) saveStatusEl.classList.remove('visible');
+      }
+
+      openBtn.onclick = () => {
+        loadFromGameState();
+        modal.classList.add('active');
+      };
+      closeBtn.onclick = () => modal.classList.remove('active');
 
       if (addTruthBtn) {
         addTruthBtn.onclick = (e) => {
@@ -969,31 +1012,49 @@
         };
       }
 
-      truthInput.oninput = () => {
-        if (truthInput.value.includes(',')) addTag(truthInput.value, true);
+      // One question per Enter press — commas inside a question (perfectly
+      // normal English punctuation) are left alone and never split it.
+      truthInput.onkeydown = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addTag(truthInput.value, true); }
       };
-      dareInput.oninput = () => {
-        if (dareInput.value.includes(',')) addTag(dareInput.value, false);
+      dareInput.onkeydown = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addTag(dareInput.value, false); }
       };
 
-      truthInput.onkeyup = (e) => {
-        if (e.key === 'Enter') addTag(truthInput.value, true);
-      };
-      dareInput.onkeyup = (e) => {
-        if (e.key === 'Enter') addTag(dareInput.value, false);
+      if (clearAllBtn) {
+        clearAllBtn.onclick = () => {
+          truthTags = [];
+          dareTags = [];
+          renderTags(truthContainer, truthTags, true);
+          renderTags(dareContainer, dareTags, false);
+          truthCountEl.textContent = 0;
+          dareCountEl.textContent = 0;
+          updateCustomOnlyAvailability();
+        };
+      }
+
+      customOnlyToggle.onchange = () => {
+        // Guard against a disabled checkbox somehow still firing a change
+        // (e.g. programmatic toggling) below the minimum question count.
+        if (customOnlyToggle.disabled) customOnlyToggle.checked = false;
       };
 
       saveBtn.onclick = () => {
         if (truthInput.value.trim()) addTag(truthInput.value, true);
         if (dareInput.value.trim()) addTag(dareInput.value, false);
 
-        const customOnly = document.getElementById('customOnlyToggle').checked;
+        const customOnly = customOnlyToggle.checked;
+
         if (truthGameInstance) {
           truthGameInstance.customTruthTags = [...truthTags];
           truthGameInstance.customDareTags = [...dareTags];
           truthGameInstance.useCustomOnly = customOnly;
+          truthGameInstance.notifyCustomQuestionsChanged();
         }
 
+        // Full snapshot every time — the other side REPLACES its list with
+        // this, so removed/cleared questions actually disappear for them
+        // too instead of lingering forever.
         if (syncEngine) {
           syncEngine.write('game/customQuestions', {
             truth: truthTags,
@@ -1002,8 +1063,12 @@
           });
         }
 
-        modal.classList.remove('active');
-        alert(`Saved ${truthTags.length} Truth and ${dareTags.length} Dare questions!`);
+        if (saveStatusEl) {
+          saveStatusEl.textContent = `✓ Saved — ${truthTags.length} Truth, ${dareTags.length} Dare`;
+          saveStatusEl.classList.add('visible');
+          clearTimeout(saveStatusTimer);
+          saveStatusTimer = setTimeout(() => saveStatusEl.classList.remove('visible'), 2200);
+        }
       };
     }
 
