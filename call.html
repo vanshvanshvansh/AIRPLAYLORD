@@ -1012,29 +1012,30 @@
         };
       }
 
-      // Pressing Enter OR typing a comma both turn the current text into a
-      // tag — matching how tag inputs normally behave, instead of forcing
-      // Enter only. Since this is a keydown handler, the comma key is
-      // caught before it's ever inserted into the input, so it never ends
-      // up inside the saved question text.
-      truthInput.onkeydown = (e) => {
-        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(truthInput.value, true); }
-      };
-      dareInput.onkeydown = (e) => {
-        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(dareInput.value, false); }
-      };
+    // Phone keyboards often don't send a proper keydown for ",", so we
+// also watch the actual typed text (the "input" event, which every
+// keyboard fires) and turn a comma into a tag the moment it appears.
+truthInput.onkeydown = (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addTag(truthInput.value, true); }
+};
+dareInput.onkeydown = (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addTag(dareInput.value, false); }
+};
 
-      if (clearAllBtn) {
-        clearAllBtn.onclick = () => {
-          truthTags = [];
-          dareTags = [];
-          renderTags(truthContainer, truthTags, true);
-          renderTags(dareContainer, dareTags, false);
-          truthCountEl.textContent = 0;
-          dareCountEl.textContent = 0;
-          updateCustomOnlyAvailability();
-        };
-      }
+truthInput.addEventListener('input', () => {
+  if (truthInput.value.includes(',')) {
+    const [before, ...rest] = truthInput.value.split(',');
+    addTag(before, true);
+    truthInput.value = rest.join(',');
+  }
+});
+dareInput.addEventListener('input', () => {
+  if (dareInput.value.includes(',')) {
+    const [before, ...rest] = dareInput.value.split(',');
+    addTag(before, false);
+    dareInput.value = rest.join(',');
+  }
+});
 
       customOnlyToggle.onchange = () => {
         // Guard against a disabled checkbox somehow still firing a change
