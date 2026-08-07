@@ -583,6 +583,9 @@
       // between samples) and roughly halves that overhead.
       let _lastInputSend = 0;
       function renderLoop() {
+        // Hand-tracking dot/skeleton only shows while a game is actually
+        // being played — hidden during normal calling.
+        handTracker.setVisible(!!(window.activeOverlayManager && window.activeOverlayManager.activeGame));
         handTracker.advanceDisplayPosition();
         if (handTracker.filteredFingertip) {
           const now = performance.now();
