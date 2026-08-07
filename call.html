@@ -56,6 +56,7 @@
     <div class="video-grid" id="videoGrid">
       <div class="video-tile">
         <video id="localVideo" class="filter-none" autoplay playsinline muted></video>
+        <div id="localCameraHint" class="video-center-hint">If you can't see yourself here, please refresh this page once — wait until you can see yourself.</div>
         <div class="peer-name-tag">
           <span class="status-dot"></span>
           <span id="localPeerTag">You (Host)</span>
@@ -67,6 +68,7 @@
       </div>
       <div class="video-tile remote">
         <video id="remoteVideo" class="filter-none" autoplay playsinline></video>
+        <div id="remoteWaitingHint" class="video-center-hint">Waiting for peer...</div>
         <div class="peer-name-tag">
           <span class="status-dot" style="background: #00f2fe; box-shadow: 0 0 10px #00f2fe;"></span>
           <span id="remotePeerTag">Waiting for peer...</span>
@@ -460,6 +462,30 @@
       const userName = isHost ? "Host Player" : "Guest Player";
       document.getElementById('localPeerTag').textContent = isHost ? "You (Host)" : "You (Guest)";
       document.getElementById('remotePeerTag').textContent = isHost ? "Waiting for peer..." : "Connecting to Host...";
+
+      // Small centered hints: shown by default, hidden the instant each
+      // video tile actually has a visible picture playing in it. This
+      // covers two situations —
+      //  1) Guest opens the link before the host is on the call: the top
+      //     (remote) tile stays blank, so we tell them to wait for the
+      //     host. Host sees the same thing while waiting for the guest.
+      //  2) Either player's own camera (bottom tile) fails to show up
+      //     immediately: we tell them to refresh once.
+      const remoteWaitingHint = document.getElementById('remoteWaitingHint');
+      const localCameraHint = document.getElementById('localCameraHint');
+      if (remoteWaitingHint) {
+        remoteWaitingHint.textContent = isHost
+          ? "Waiting for the other player to join the call..."
+          : "Please wait for the host to accept the call...";
+      }
+      const localVideoEl = document.getElementById('localVideo');
+      const remoteVideoEl = document.getElementById('remoteVideo');
+      if (localVideoEl && localCameraHint) {
+        localVideoEl.addEventListener('playing', () => { localCameraHint.style.display = 'none'; });
+      }
+      if (remoteVideoEl && remoteWaitingHint) {
+        remoteVideoEl.addEventListener('playing', () => { remoteWaitingHint.style.display = 'none'; });
+      }
 
       const syncEngine = new SyncEngine(roomId, isHost, userName);
 
