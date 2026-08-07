@@ -226,7 +226,7 @@
         <button id="closeTruthModalBtn" class="btn btn-secondary btn-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <p style="color: var(--text-muted); margin-top: 6px; font-size: 0.9rem;">
-        Type a question, then press Enter to add it. Add as many as you like — you can add 100+ truths and dares.
+        Type a question, then press Enter or type a comma ( , ) to add it as a tag. Add as many as you like — you can add 100+ truths and dares. Important: only use the comma at the very end of a question, right after you finish typing it. If you type a comma in the middle of a question, it will be treated as the end of that question and the rest of your sentence will be cut off and saved as a separate, incomplete tag.
       </p>
 
       <!-- Truth Section -->
@@ -1012,13 +1012,16 @@
         };
       }
 
-      // One question per Enter press — commas inside a question (perfectly
-      // normal English punctuation) are left alone and never split it.
+      // Pressing Enter OR typing a comma both turn the current text into a
+      // tag — matching how tag inputs normally behave, instead of forcing
+      // Enter only. Since this is a keydown handler, the comma key is
+      // caught before it's ever inserted into the input, so it never ends
+      // up inside the saved question text.
       truthInput.onkeydown = (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); addTag(truthInput.value, true); }
+        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(truthInput.value, true); }
       };
       dareInput.onkeydown = (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); addTag(dareInput.value, false); }
+        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(dareInput.value, false); }
       };
 
       if (clearAllBtn) {
