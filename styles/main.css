@@ -175,7 +175,7 @@ h1, h2, h3, h4 {
   width: 64px;
   height: 64px;
   object-fit: contain;
-  margin-bottom: 16px;
+  margin-bottom: 28px;
   filter: drop-shadow(0 0 18px rgba(0, 242, 254, 0.35));
 }
 
