@@ -753,8 +753,12 @@ h1, h2, h3, h4 {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   min-height: 60px;
+  max-height: 180px;
+  overflow-y: auto;
   margin-top: 8px;
-  align-items: center;
+  align-items: flex-start;
+  align-content: flex-start;
+  overscroll-behavior: contain;
 }
 
 .tag-chip {
@@ -844,6 +848,53 @@ h1, h2, h3, h4 {
   cursor: pointer;
   margin-top: 16px;
   font-size: 0.95rem;
+}
+
+.toggle-switch-label.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-hint {
+  display: block;
+  margin-top: 4px;
+  margin-left: 44px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.clear-all-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 8, 68, 0.5);
+  color: #ff4e50;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.clear-all-btn:hover, .clear-all-btn:active {
+  background: rgba(255, 8, 68, 0.15);
+  border-color: #ff4e50;
+}
+
+.save-status-text {
+  display: block;
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #00f2fe;
+  min-height: 1.1em;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.save-status-text.visible {
+  opacity: 1;
 }
 
 /* Call End Summary Dashboard */
