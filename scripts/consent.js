@@ -6,6 +6,10 @@ class ConsentManager {
     this.onJoinAccepted = options.onJoinAccepted || null;
     this.onJoinDeclined = options.onJoinDeclined || null;
     this.onGameInviteReceived = options.onGameInviteReceived || null;
+    // BUGFIX (host refresh breaks reconnection): fires when the host loads
+    // the page and discovers the room's join request was already
+    // 'accepted' in an earlier session — see setupListeners() below.
+    this.onHostReconnect = options.onHostReconnect || null;
 
     this.joinModal = document.getElementById('joinConsentModal');
     this.gameModal = document.getElementById('gameConsentModal');
@@ -17,9 +21,28 @@ class ConsentManager {
     if (!this.sync) return;
 
     if (this.sync.isHost) {
+      // The very first time this listener fires, Firebase hands back
+      // whatever value is ALREADY in the database (not just future
+      // changes). That first snapshot tells us whether this is a brand
+      // new room (no request yet, or a still-pending one) or the host
+      // reloading into a room where a guest was already accepted before —
+      // in which case nothing else will ever re-trigger a fresh WebRTC
+      // offer, since a pending -> accepted transition already happened in
+      // a previous page load and won't happen again. Only that first
+      // event is allowed to trigger onHostReconnect, so a normal live
+      // pending -> accepted flow (handled by the Accept button itself)
+      // never fires it a second time.
+      let isFirstJoinRequestEvent = true;
       this.sync.listen('joinRequest', (request) => {
-        if (request && request.status === 'pending') {
+        const wasFirstEvent = isFirstJoinRequestEvent;
+        isFirstJoinRequestEvent = false;
+
+        if (!request) return;
+
+        if (request.status === 'pending') {
           this.showJoinRequestModal(request.name);
+        } else if (wasFirstEvent && request.status === 'accepted' && this.onHostReconnect) {
+          this.onHostReconnect();
         }
       });
     } else {
