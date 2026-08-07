@@ -133,8 +133,31 @@ class WebRTCManager {
     this.dataChannel.onerror = (e) => console.error("Data channel error:", e);
   }
 
+  // BUGFIX (host-refresh reconnection): createOffer() and handleOffer()
+  // used to reuse `this.peerConnection` if one already existed instead of
+  // always starting fresh. That's harmless on a truly first connection,
+  // but on a *reconnect* (e.g. the host refreshes the page after the
+  // guest was already accepted, and later re-offers) the OTHER side still
+  // has its OLD, now-dead peerConnection object sitting around from the
+  // original session. The guest's offer handler used to check
+  // `!webrtc.peerConnection` before processing a new offer — since that
+  // was always false (the stale object was still there), every fresh
+  // offer sent after a reconnect was silently ignored. The only way
+  // around it used to be for the guest to ALSO refresh (which reset their
+  // `peerConnection` back to null). Always tearing down and rebuilding a
+  // clean RTCPeerConnection here fixes that for both directions, with no
+  // requirement that both sides reload together.
+  resetPeerConnection() {
+    if (this.peerConnection) {
+      try { this.peerConnection.close(); } catch (e) { /* already closed */ }
+    }
+    this.peerConnection = null;
+    this.pendingIceCandidates = [];
+  }
+
   async createOffer() {
-    if (!this.peerConnection) this.createPeerConnection();
+    this.resetPeerConnection();
+    this.createPeerConnection();
     // Host creates the channel. unordered + no retransmits = fire-and-forget,
     // like UDP: a late/dropped position update is just skipped instead of
     // blocking newer ones behind it, which is what real-time game state needs.
@@ -149,7 +172,8 @@ class WebRTCManager {
   }
 
   async handleOffer(offer) {
-    if (!this.peerConnection) this.createPeerConnection();
+    this.resetPeerConnection();
+    this.createPeerConnection();
     await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
     await this.flushPendingIceCandidates();
     const answer = await this.peerConnection.createAnswer();
