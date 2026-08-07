@@ -496,37 +496,53 @@
       // anywhere else in the call flow.
       function watchVideoFreeze(videoEl, overlayEl, freezeMs = 1100) {
         if (!videoEl || !overlayEl) return;
-        let lastFrameAt = performance.now();
+        // Same exact method for BOTH tiles (local and remote) so freezing
+        // is detected equally on either side — no relying on browser-
+        // specific APIs (some support requestVideoFrameCallback, some
+        // don't, which is why detection used to work on one video but not
+        // the other). Instead, sample the actual rendered pixels of the
+        // video into a tiny offscreen canvas and compare byte-for-byte
+        // against the previous sample. A real, live camera/network video
+        // is never bit-identical two samples in a row (sensor noise alone
+        // guarantees that) — so an unchanged sample for freezeMs means the
+        // video is genuinely stuck on one frame, on any browser, on any
+        // device, for either the local or the remote tile.
+        const SAMPLE_SIZE = 12;
+        const canvas = document.createElement('canvas');
+        canvas.width = SAMPLE_SIZE;
+        canvas.height = SAMPLE_SIZE;
+        const ctx2d = canvas.getContext('2d', { willReadFrequently: true });
+        let lastData = null;
+        let lastChangeAt = performance.now();
         let frozen = false;
         const setFrozen = (v) => {
           if (v === frozen) return;
           frozen = v;
           overlayEl.classList.toggle('active', v);
         };
-        if (typeof videoEl.requestVideoFrameCallback === 'function') {
-          const onFrame = () => {
-            lastFrameAt = performance.now();
-            setFrozen(false);
-            videoEl.requestVideoFrameCallback(onFrame);
-          };
-          videoEl.requestVideoFrameCallback(onFrame);
-        } else {
-          // Fallback for browsers without requestVideoFrameCallback: poll
-          // currentTime, which stops advancing when the video is stalled.
-          let lastTime = -1;
-          setInterval(() => {
-            if (videoEl.readyState >= 2 && !videoEl.paused && videoEl.currentTime !== lastTime) {
-              lastTime = videoEl.currentTime;
-              lastFrameAt = performance.now();
-              setFrozen(false);
-            }
-          }, 350);
-        }
         setInterval(() => {
-          if (videoEl.srcObject && performance.now() - lastFrameAt > freezeMs) {
+          if (!videoEl.srcObject || videoEl.readyState < 2 || !videoEl.videoWidth) return;
+          let data;
+          try {
+            ctx2d.drawImage(videoEl, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
+            data = ctx2d.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE).data;
+          } catch (e) {
+            return; // e.g. video not ready this tick — just skip
+          }
+          let changed = !lastData;
+          if (lastData) {
+            for (let i = 0; i < data.length; i++) {
+              if (data[i] !== lastData[i]) { changed = true; break; }
+            }
+          }
+          lastData = data;
+          if (changed) {
+            lastChangeAt = performance.now();
+            setFrozen(false);
+          } else if (performance.now() - lastChangeAt > freezeMs) {
             setFrozen(true);
           }
-        }, 350);
+        }, 300);
       }
       watchVideoFreeze(localVideoEl, document.getElementById('localFreezeOverlay'));
       watchVideoFreeze(remoteVideoEl, document.getElementById('remoteFreezeOverlay'));
@@ -540,6 +556,7 @@
           const warningBanner = document.getElementById('connectionWarningBanner');
           const warningText = document.getElementById('connectionWarningText');
           const remoteFreezeOverlay = document.getElementById('remoteFreezeOverlay');
+          const localFreezeOverlay = document.getElementById('localFreezeOverlay');
 
           if (state === 'MEDIA_DENIED') {
             alert("Camera and microphone permissions are required to use AirPlay.");
@@ -550,10 +567,12 @@
           } else if (state === 'reconnecting' || state === 'disconnected') {
             warningBanner.style.display = 'block';
             warningText.textContent = "Reconnecting call...";
-            // Blur immediately on the connection signal instead of waiting
-            // for the frame-freeze detector to notice — avoids showing
-            // whatever awkward frame the video happened to stall on.
+            // Blur BOTH tiles immediately on the connection signal instead
+            // of waiting for the frame-freeze detector to notice — a
+            // reconnect affects the whole call, so both sides should see
+            // the same blurred state, not just one of the two videos.
             if (remoteFreezeOverlay) remoteFreezeOverlay.classList.add('active');
+            if (localFreezeOverlay) localFreezeOverlay.classList.add('active');
           } else if (state === 'ICE_FAILED_TIMEOUT') {
             warningBanner.style.display = 'block';
             warningText.textContent = "Couldn't connect directly — try switching networks";
