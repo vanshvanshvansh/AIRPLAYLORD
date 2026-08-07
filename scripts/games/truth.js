@@ -45,6 +45,20 @@ class TruthGame {
       peerB: new Set()
     };
 
+    // Small "add more questions" banner state — shown once when every
+    // question in the current pool has been asked to BOTH players, reset
+    // whenever the question list changes.
+    this._poolExhaustedShown = false;
+    this._poolExhaustedAt = 0;
+
+    // Anti-glitch "armed" gates for dwell-to-select UI (see renderChoiceButtons
+    // and renderPromptCard). A dwell timer is only allowed to START counting
+    // once the fingertip has been OFF the button at least one frame after a
+    // new screen appears — this stops a finger left resting from the
+    // previous screen from instantly counting toward the next action.
+    this._choiceArmed = true;
+    this._promptHoldArmed = true;
+
     this.defaultPrompts = {
       LIGHT: {
         TRUTH: [
@@ -116,6 +130,12 @@ class TruthGame {
           this.currentPrompt = stateData.currentPrompt;
           this.selectedPlayer = stateData.selectedPlayer;
           if (stateData.tdCounts) this.tdCounts = stateData.tdCounts;
+          // Use our own clock for the fade timer — the sender's
+          // performance.now() timestamp isn't meaningful on this device.
+          if (stateData.poolExhaustedAt && !this._poolExhaustedShown) {
+            this._poolExhaustedShown = true;
+            this._poolExhaustedAt = performance.now();
+          }
         }
       });
       this.sync.listen('game/customQuestions', (data) => {
@@ -125,9 +145,20 @@ class TruthGame {
   }
 
   syncCustomQuestions(data) {
-    if (data.truth) this.customTruthTags = Array.from(new Set([...this.customTruthTags, ...data.truth]));
-    if (data.dare) this.customDareTags = Array.from(new Set([...this.customDareTags, ...data.dare]));
+    // Every save sends the FULL current list, so the receiving side must
+    // REPLACE its list with it, not merge/union. Merging meant a question
+    // removed on one phone could never actually disappear on the other —
+    // it just kept getting re-added back in on every future save.
+    if (Array.isArray(data.truth)) this.customTruthTags = [...data.truth];
+    if (Array.isArray(data.dare)) this.customDareTags = [...data.dare];
     if (data.useCustomOnly !== undefined) this.useCustomOnly = data.useCustomOnly;
+    this.notifyCustomQuestionsChanged();
+  }
+
+  // Called whenever the custom question pool changes (locally or via sync)
+  // so a fresh "you've asked everything" banner can appear again later.
+  notifyCustomQuestionsChanged() {
+    this._poolExhaustedShown = false;
   }
 
   resetTurnState() {
@@ -141,6 +172,8 @@ class TruthGame {
     this.dwellStartDare = null;
     this.dwellStartTaskDone = null;
     this._spinTapArmed = true;
+    this._choiceArmed = true;
+    this._promptHoldArmed = true;
 
     if (this.sync) {
       this.sync.write('game/truthState', {
@@ -286,6 +319,44 @@ class TruthGame {
     } else if (this.choiceState === 'PROMPT_ACTIVE') {
       this.renderPromptCard(ctx, cx, cy, localFingertip, now);
     }
+
+    this.renderExhaustionBanner(ctx, width, now);
+  }
+
+  // Small, brief "add more questions" banner — shown once the whole custom
+  // question pool has been asked to both players.
+  renderExhaustionBanner(ctx, width, now) {
+    if (!this._poolExhaustedShown) return;
+    const elapsed = now - this._poolExhaustedAt;
+    const BANNER_DURATION = 3500;
+    if (elapsed > BANNER_DURATION) return;
+
+    const fadeOut = elapsed > BANNER_DURATION - 500 ? (BANNER_DURATION - elapsed) / 500 : 1;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, fadeOut));
+
+    const text = "You've asked every question — please add more!";
+    ctx.font = `600 ${scaleFont(ctx.canvas, 13)}px Outfit, sans-serif`;
+    const padX = 14;
+    const textWidth = ctx.measureText(text).width;
+    const boxW = textWidth + padX * 2;
+    const boxH = 30;
+    const boxX = width / 2 - boxW / 2;
+    const boxY = 14;
+
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, boxH, 15);
+    ctx.fillStyle = 'rgba(12, 18, 32, 0.75)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 242, 254, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, width / 2, boxY + boxH / 2 + 1);
+    ctx.restore();
   }
 
   // Compact Selector Ring (Radius 60px)
@@ -334,6 +405,12 @@ class TruthGame {
     const normAngle = (this.angle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
     this.selectedPlayer = normAngle > Math.PI ? 'peerA' : 'peerB';
     this.choiceState = 'CHOOSING';
+    // Require the fingertip to be off both buttons at least once before a
+    // hold can start counting — stops a finger left near the bottle from
+    // instantly triggering a choice on this new screen.
+    this._choiceArmed = false;
+    this.dwellStartTruth = null;
+    this.dwellStartDare = null;
 
     if (this.sync && this.sync.isHost) {
       this.sync.write('game/truthState', {
@@ -390,18 +467,28 @@ class TruthGame {
       const sens = this.sensitivity || 1.0;
       const radius = 38 * sens;
 
-      if (Math.sqrt((fx - tx) ** 2 + (fy - ty) ** 2) < radius) {
-        if (!this.dwellStartTruth) this.dwellStartTruth = now;
-        else if (now - this.dwellStartTruth >= 300) this.selectChoice('TRUTH');
-      } else {
-        this.dwellStartTruth = null;
-      }
+      const onTruth = Math.sqrt((fx - tx) ** 2 + (fy - ty) ** 2) < radius;
+      const onDare = Math.sqrt((fx - dx) ** 2 + (fy - dy) ** 2) < radius;
 
-      if (Math.sqrt((fx - dx) ** 2 + (fy - dy) ** 2) < radius) {
-        if (!this.dwellStartDare) this.dwellStartDare = now;
-        else if (now - this.dwellStartDare >= 300) this.selectChoice('DARE');
-      } else {
+      if (!this._choiceArmed) {
+        // Ignore hovering until the finger has been off both buttons once.
+        if (!onTruth && !onDare) this._choiceArmed = true;
+        this.dwellStartTruth = null;
         this.dwellStartDare = null;
+      } else {
+        if (onTruth) {
+          if (!this.dwellStartTruth) this.dwellStartTruth = now;
+          else if (now - this.dwellStartTruth >= 300) this.selectChoice('TRUTH');
+        } else {
+          this.dwellStartTruth = null;
+        }
+
+        if (onDare) {
+          if (!this.dwellStartDare) this.dwellStartDare = now;
+          else if (now - this.dwellStartDare >= 300) this.selectChoice('DARE');
+        } else {
+          this.dwellStartDare = null;
+        }
       }
     } else {
       this.dwellStartTruth = null;
@@ -413,16 +500,13 @@ class TruthGame {
     this.chosenType = type;
     const targetPlayer = this.selectedPlayer || 'peerA';
 
-    let availableList = [];
-    if (type === 'TRUTH') {
-      availableList = (this.useCustomOnly && this.customTruthTags.length > 0)
-        ? [...this.customTruthTags]
-        : [...this.defaultPrompts.LIGHT.TRUTH, ...this.customTruthTags];
-    } else {
-      availableList = (this.useCustomOnly && this.customDareTags.length > 0)
-        ? [...this.customDareTags]
-        : [...this.defaultPrompts.LIGHT.DARE, ...this.customDareTags];
-    }
+    const truthPool = (this.useCustomOnly && this.customTruthTags.length > 0)
+      ? [...this.customTruthTags]
+      : [...this.defaultPrompts.LIGHT.TRUTH, ...this.customTruthTags];
+    const darePool = (this.useCustomOnly && this.customDareTags.length > 0)
+      ? [...this.customDareTags]
+      : [...this.defaultPrompts.LIGHT.DARE, ...this.customDareTags];
+    const availableList = type === 'TRUTH' ? truthPool : darePool;
 
     let freshList = availableList.filter(q => !this.askedQuestions[targetPlayer].has(q));
     if (freshList.length === 0) {
@@ -435,9 +519,26 @@ class TruthGame {
 
     this.currentPrompt = chosenQuestion;
     this.choiceState = 'PROMPT_ACTIVE';
+    // Same anti-glitch gate as the choice buttons: don't let a finger still
+    // resting from the TRUTH/DARE tap instantly start counting toward
+    // "Hold to Spin Again" on the very next screen.
+    this._promptHoldArmed = false;
+    this.dwellStartTaskDone = null;
 
     if (!this.tdCounts[targetPlayer]) this.tdCounts[targetPlayer] = { truth: 0, dare: 0 };
     this.tdCounts[targetPlayer][type === 'TRUTH' ? 'truth' : 'dare']++;
+
+    // "Add more questions" banner: fires once when EVERY question in the
+    // full pool (truth + dare, given current settings) has been asked to
+    // both players at least once.
+    const fullPool = [...truthPool, ...darePool];
+    const bothCovered = fullPool.length > 0 &&
+      fullPool.every(q => this.askedQuestions.peerA.has(q)) &&
+      fullPool.every(q => this.askedQuestions.peerB.has(q));
+    if (bothCovered && !this._poolExhaustedShown) {
+      this._poolExhaustedShown = true;
+      this._poolExhaustedAt = performance.now();
+    }
 
     if (this.sync) {
       this.sync.write('game/truthState', {
@@ -445,7 +546,8 @@ class TruthGame {
         chosenType: this.chosenType,
         currentPrompt: this.currentPrompt,
         selectedPlayer: this.selectedPlayer,
-        tdCounts: this.tdCounts
+        tdCounts: this.tdCounts,
+        poolExhaustedAt: this._poolExhaustedShown ? this._poolExhaustedAt : null
       });
     }
   }
@@ -489,6 +591,16 @@ class TruthGame {
     ctx.fillStyle = mainColor;
     ctx.fillText(`${this.chosenType} TASK`, cx, topY + 38);
 
+    // Tiny corner dot showing which player's turn/pick this was
+    const dotColor = this.PLAYER_COLORS[this.selectedPlayer] || '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx + boxWidth / 2 - 16, topY + 16, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = dotColor;
+    ctx.shadowColor = dotColor;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
     // Question / Task Prompt Text
     ctx.font = `500 ${scaleFont(ctx.canvas, 16)}px Outfit, sans-serif`;
     ctx.fillStyle = '#ffffff';
@@ -518,8 +630,14 @@ class TruthGame {
       const fx = activePos.x;
       const fy = activePos.y;
       const sens = this.sensitivity || 1.0;
+      const onButton = Math.abs(fx - btnX) < (btnW / 2) * sens && Math.abs(fy - btnY) < (btnH / 2) * sens;
 
-      if (Math.abs(fx - btnX) < (btnW / 2) * sens && Math.abs(fy - btnY) < (btnH / 2) * sens) {
+      if (!this._promptHoldArmed) {
+        // A finger left resting from the TRUTH/DARE tap doesn't count —
+        // wait for it to leave the button area at least once first.
+        if (!onButton) this._promptHoldArmed = true;
+        this.dwellStartTaskDone = null;
+      } else if (onButton) {
         if (!this.dwellStartTaskDone) {
           this.dwellStartTaskDone = now;
         } else {
